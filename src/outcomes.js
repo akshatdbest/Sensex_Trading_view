@@ -112,13 +112,11 @@ const result = await db
   .bind(fetchLimit)
   .all();
 
-const sourceRows = (result.results || []).reverse();
+const rows = (result.results || []).reverse();
 
-  const rows = (result.results || [])
-    .map(parseRow)
-    .filter(
-      r => r.event_time && Number.isFinite(r.price)
-    );
+const sourceRows = rows.slice(
+  Math.max(0, rows.length - requestedLimit)
+);
 
   const output = [];
 
