@@ -5,6 +5,9 @@ import { getDecisionFromEvidence } from "./decision.js";
 import {
   calculatePaperPerformance
 } from "./paperPerformance.js";
+import {
+  calculatePaperPerformance
+} from "./paperPerformance.js";
 
 import {
   initPaperTradeDb,
@@ -3502,6 +3505,38 @@ export default{
               )
           }
         },
+        {
+          headers:{
+            "cache-control":
+              "no-store"
+          }
+        }
+      );
+    }
+    /* -----------------------------------------------------
+       Paper Trade Performance API
+    ----------------------------------------------------- */
+    
+    if(
+      url.pathname === "/api/paper-performance" &&
+      method === "GET"
+    ){
+    
+      const requested =
+        Number(
+          url.searchParams.get(
+            "limit"
+          ) || 500
+        );
+    
+      const performance =
+        await calculatePaperPerformance(
+          env.DB,
+          requested
+        );
+    
+      return Response.json(
+        performance,
         {
           headers:{
             "cache-control":
