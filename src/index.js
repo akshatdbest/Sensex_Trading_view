@@ -727,6 +727,131 @@ tbody tr:hover{
 
 
 /* --------------------------------------------------
+   PAPER PERFORMANCE
+-------------------------------------------------- */
+
+.performance-panel{
+  margin-top:16px;
+  padding:20px
+}
+
+.performance-head{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:15px;
+  margin-bottom:14px
+}
+
+.performance-title{
+  font-size:13px;
+  font-weight:750;
+  text-transform:uppercase;
+  letter-spacing:.12em
+}
+
+.performance-note{
+  color:var(--muted);
+  font-size:10px
+}
+
+.performance-grid{
+  display:grid;
+  grid-template-columns:repeat(6,1fr);
+  gap:9px
+}
+
+.performance-item{
+  background:var(--panel2);
+  border:1px solid #1c242d;
+  border-radius:9px;
+  padding:13px
+}
+
+.performance-item span{
+  display:block;
+  color:var(--muted);
+  font-size:9px;
+  text-transform:uppercase;
+  letter-spacing:.1em
+}
+
+.performance-item b{
+  display:block;
+  margin-top:7px;
+  font-size:18px
+}
+
+.performance-item small{
+  display:block;
+  margin-top:5px;
+  color:#596572;
+  font-size:10px
+}
+
+.performance-positive{
+  color:var(--green)
+}
+
+.performance-negative{
+  color:var(--red)
+}
+
+.performance-neutral{
+  color:var(--amber)
+}
+
+.performance-direction{
+  margin-top:14px;
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:9px
+}
+
+.performance-direction-card{
+  background:var(--panel2);
+  border:1px solid #1c242d;
+  border-radius:9px;
+  padding:13px
+}
+
+.performance-direction-card h4{
+  margin:0;
+  font-size:11px;
+  text-transform:uppercase;
+  letter-spacing:.1em
+}
+
+.performance-direction-card .direction-grid{
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:9px;
+  margin-top:10px
+}
+
+.performance-direction-card .direction-stat{
+  background:#10151b;
+  border:1px solid #222c36;
+  border-radius:7px;
+  padding:9px
+}
+
+.performance-direction-card .direction-stat span{
+  display:block;
+  color:var(--muted);
+  font-size:8px;
+  text-transform:uppercase;
+  letter-spacing:.08em
+}
+
+.performance-direction-card .direction-stat b{
+  display:block;
+  margin-top:5px;
+  font-size:13px
+}
+
+
+/* --------------------------------------------------
    RESPONSIVE
 -------------------------------------------------- */
 
@@ -749,6 +874,10 @@ tbody tr:hover{
   }
 
   .paper-grid{
+    grid-template-columns:repeat(3,1fr)
+  }
+
+  .performance-grid{
     grid-template-columns:repeat(3,1fr)
   }
 }
@@ -792,6 +921,18 @@ tbody tr:hover{
 
   .paper-grid{
     grid-template-columns:1fr 1fr
+  }
+
+  .performance-grid{
+    grid-template-columns:1fr 1fr
+  }
+
+  .performance-direction{
+    grid-template-columns:1fr
+  }
+
+  .performance-direction-card .direction-grid{
+    grid-template-columns:repeat(3,1fr)
   }
 }
 
@@ -1093,6 +1234,39 @@ SENSEX points · simulated only
 
 <div class="paper-empty">
 Loading paper-trade state...
+</div>
+
+</div>
+
+</div>
+
+</section>
+
+
+<!-- =====================================================
+     PAPER PERFORMANCE
+===================================================== -->
+
+<section class="performance-panel">
+
+<div class="performance-head">
+
+<div class="performance-title">
+Paper Performance
+</div>
+
+<div class="performance-note">
+Forward performance · simulated only
+</div>
+
+</div>
+
+<div id="paperPerformanceContent">
+
+<div class="paper-status">
+
+<div class="paper-empty">
+Loading paper-performance statistics...
 </div>
 
 </div>
@@ -1809,6 +1983,383 @@ function renderPaperTrade(data){
 }
 
 
+
+/* --------------------------------------------------
+   PAPER PERFORMANCE RENDER
+-------------------------------------------------- */
+
+function performanceNumber(v, suffix=""){
+
+  if(
+    v==null ||
+    Number.isNaN(Number(v))
+  )
+    return "—";
+
+  return Number(v).toLocaleString(
+    "en-IN",
+    {
+      maximumFractionDigits:2
+    }
+  )+
+  suffix;
+}
+
+
+function performancePnl(v){
+
+  if(
+    v==null ||
+    Number.isNaN(Number(v))
+  )
+    return "—";
+
+  const x=Number(v);
+
+  return(
+    x>0
+      ?"+"
+      :""
+  )+
+  x.toFixed(2)+
+  " pts";
+}
+
+
+function performancePnlClass(v){
+
+  if(
+    v==null ||
+    Number.isNaN(Number(v))
+  )
+    return "performance-neutral";
+
+  const x=Number(v);
+
+  if(x>0)
+    return "performance-positive";
+
+  if(x<0)
+    return "performance-negative";
+
+  return "performance-neutral";
+}
+
+
+function renderPaperPerformance(data){
+
+  const container=
+    $("paperPerformanceContent");
+
+  if(!data){
+
+    container.innerHTML=
+      '<div class="paper-status">'+
+      '<div class="paper-empty">'+
+      'Paper-performance data unavailable.'+
+      '</div>'+
+      '</div>';
+
+    return;
+  }
+
+
+  const total=
+    Number(
+      data.total_trades||0
+    );
+
+  const winRate=
+    Number(
+      data.win_rate||0
+    );
+
+  const totalPnl=
+    Number(
+      data.total_pnl_points||0
+    );
+
+  const expectancy=
+    Number(
+      data.expectancy||0
+    );
+
+  const profitFactor=
+    data.profit_factor==null
+      ?"—"
+      :Number(
+        data.profit_factor
+      ).toFixed(2);
+
+
+  let html="";
+
+
+  html+=
+    '<div class="performance-grid">'+
+
+
+    '<div class="performance-item">'+
+      '<span>Closed trades</span>'+
+      '<b>'+
+        performanceNumber(total)+
+      '</b>'+
+      '<small>'+
+        performanceNumber(
+          data.open_trades||0
+        )+
+        ' open'+
+      '</small>'+
+    '</div>'+
+
+
+    '<div class="performance-item">'+
+      '<span>Win rate</span>'+
+      '<b class="'+
+        (
+          winRate>=60
+            ?"performance-positive"
+            :
+          winRate>=50
+            ?"performance-neutral"
+            :
+            "performance-negative"
+        )+
+      '">'+
+        winRate.toFixed(1)+
+        '%'+
+      '</b>'+
+      '<small>'+
+        performanceNumber(data.wins||0)+
+        ' wins · '+
+        performanceNumber(data.losses||0)+
+        ' losses'+
+      '</small>'+
+    '</div>'+
+
+
+    '<div class="performance-item">'+
+      '<span>Total P&L</span>'+
+      '<b class="'+
+        performancePnlClass(totalPnl)+
+      '">'+
+        performancePnl(totalPnl)+
+      '</b>'+
+      '<small>Cumulative SENSEX points</small>'+
+    '</div>'+
+
+
+    '<div class="performance-item">'+
+      '<span>Expectancy</span>'+
+      '<b class="'+
+        performancePnlClass(expectancy)+
+      '">'+
+        performancePnl(expectancy)+
+      '</b>'+
+      '<small>Average points per closed trade</small>'+
+    '</div>'+
+
+
+    '<div class="performance-item">'+
+      '<span>Profit factor</span>'+
+      '<b>'+
+        profitFactor+
+      '</b>'+
+      '<small>Gross profit ÷ gross loss</small>'+
+    '</div>'+
+
+
+    '<div class="performance-item">'+
+      '<span>Max drawdown</span>'+
+      '<b class="performance-negative">'+
+        performancePnl(
+          -Number(
+            data.max_drawdown_points||0
+          )
+        )+
+      '</b>'+
+      '<small>'+
+        performanceNumber(
+          data.max_consecutive_losses||0
+        )+
+        ' max loss streak'+
+      '</small>'+
+    '</div>'+
+
+
+    '<div class="performance-item">'+
+      '<span>Average win</span>'+
+      '<b class="performance-positive">'+
+        performancePnl(
+          data.average_win
+        )+
+      '</b>'+
+      '<small>'+
+        performanceNumber(
+          data.wins||0
+        )+
+        ' winning trades'+
+      '</small>'+
+    '</div>'+
+
+
+    '<div class="performance-item">'+
+      '<span>Average loss</span>'+
+      '<b class="performance-negative">'+
+        performancePnl(
+          data.average_loss
+        )+
+      '</b>'+
+      '<small>'+
+        performanceNumber(
+          data.losses||0
+        )+
+        ' losing trades'+
+      '</small>'+
+    '</div>'+
+
+
+    '<div class="performance-item">'+
+      '<span>Best streak</span>'+
+      '<b class="performance-positive">'+
+        performanceNumber(
+          data.max_consecutive_wins||0
+        )+
+      '</b>'+
+      '<small>Consecutive wins</small>'+
+    '</div>'+
+
+
+    '<div class="performance-item">'+
+      '<span>Worst streak</span>'+
+      '<b class="performance-negative">'+
+        performanceNumber(
+          data.max_consecutive_losses||0
+        )+
+      '</b>'+
+      '<small>Consecutive losses</small>'+
+    '</div>'+
+
+
+    '</div>';
+
+
+  html+=
+    '<div class="performance-direction">';
+
+
+  const directions=[
+    ["CALL",data.directions?.CALL],
+    ["PUT",data.directions?.PUT]
+  ];
+
+
+  for(
+    const [direction,stats]
+    of directions
+  ){
+
+    const d=
+      stats||{};
+
+
+    html+=
+      '<div class="performance-direction-card">'+
+
+        '<h4 class="'+
+          (
+            direction==="CALL"
+              ?"performance-positive"
+              :"performance-negative"
+          )+
+        '">'+
+          direction+
+        '</h4>'+
+
+        '<div class="direction-grid">'+
+
+          '<div class="direction-stat">'+
+            '<span>Trades</span>'+
+            '<b>'+
+              performanceNumber(
+                d.trades||0
+              )+
+            '</b>'+
+          '</div>'+
+
+          '<div class="direction-stat">'+
+            '<span>Win rate</span>'+
+            '<b>'+
+              performanceNumber(
+                d.win_rate||0
+              )+
+              '%'+
+            '</b>'+
+          '</div>'+
+
+          '<div class="direction-stat">'+
+            '<span>P&L</span>'+
+            '<b class="'+
+              performancePnlClass(
+                d.pnl_points
+              )+
+            '">'+
+              performancePnl(
+                d.pnl_points
+              )+
+            '</b>'+
+          '</div>'+
+
+        '</div>'+
+
+      '</div>';
+  }
+
+
+  html+=
+    '</div>';
+
+
+  if(total<10){
+
+    html+=
+      '<div class="evidence-warning">'+
+      '<strong>EARLY SAMPLE</strong> · '+
+      'Only '+
+      total+
+      ' closed paper trades. '+
+      'Do not evaluate or optimize the strategy yet. '+
+      'Continue collecting forward trades.'+
+      '</div>';
+
+  }else if(total<30){
+
+    html+=
+      '<div class="evidence-warning">'+
+      '<strong>BUILDING SAMPLE</strong> · '+
+      total+
+      ' closed trades collected. '+
+      'Continue toward at least 30 trades before strategy evaluation.'+
+      '</div>';
+
+  }else{
+
+    html+=
+      '<div class="evidence-warning">'+
+      '<strong>FORWARD SAMPLE</strong> · '+
+      total+
+      ' closed paper trades collected. '+
+      'Use the statistics to evaluate the existing rules; '+
+      'do not optimize on a small subset.'+
+      '</div>';
+  }
+
+
+  container.innerHTML=
+    html;
+}
+
+
 /* --------------------------------------------------
    HISTORICAL EVIDENCE
 -------------------------------------------------- */
@@ -2436,6 +2987,33 @@ async function refresh(){
     }else{
 
       renderPaperTrade(null);
+    }
+
+
+    /* -----------------------------------------------
+       Paper performance
+    ------------------------------------------------ */
+
+    const performanceResponse=
+      await fetch(
+        "/api/paper-performance?limit=500",
+        {
+          cache:"no-store"
+        }
+      );
+
+    if(performanceResponse.ok){
+
+      const performance=
+        await performanceResponse.json();
+
+      renderPaperPerformance(
+        performance
+      );
+
+    }else{
+
+      renderPaperPerformance(null);
     }
 
 
@@ -3344,60 +3922,62 @@ export default{
       );
     }
 
+
     /* -----------------------------------------------------
        Paper Trade API
     ----------------------------------------------------- */
-    
+
     if(
       url.pathname==="/api/paper-trade" &&
       method==="GET"
     ){
-    
+
       const activeTrade =
         await getActivePaperTrade(
           env.DB
         );
-    
+
       const trades =
         await getPaperTrades(
           env.DB,
           20
         );
-    
+
       let unrealizedPnlPoints = null;
-    
+
+
       /*
        * If a trade is active, calculate its
        * current unrealized SENSEX-point P&L
        * using the latest market snapshot.
        */
       if(activeTrade){
-    
+
         const latestRows =
           await getSignals(
             env.DB,
             50
           );
-    
+
         const latestSnapshot =
           latestRows.find(
             row =>
               row.event ===
               "MARKET_SNAPSHOT"
           );
-    
+
         if(latestSnapshot){
-    
+
           const currentPrice =
             Number(
               latestSnapshot.price
             );
-    
+
           const entryPrice =
             Number(
               activeTrade.entry_price
             );
-    
+
           if(
             Number.isFinite(
               currentPrice
@@ -3406,19 +3986,21 @@ export default{
               entryPrice
             )
           ){
-    
+
             unrealizedPnlPoints =
               activeTrade.direction ===
               "CALL"
-    
+
                 ? currentPrice -
                   entryPrice
-    
+
                 : entryPrice -
                   currentPrice;
           }
         }
       }
+
+
       /*
        * Calculate basic paper-trading statistics.
        */
@@ -3430,7 +4012,7 @@ export default{
             ).toUpperCase() ===
             "CLOSED"
         );
-    
+
       const wins =
         closedTrades.filter(
           trade =>
@@ -3439,7 +4021,7 @@ export default{
             ).toUpperCase() ===
             "WIN"
         );
-    
+
       const losses =
         closedTrades.filter(
           trade =>
@@ -3448,7 +4030,7 @@ export default{
             ).toUpperCase() ===
             "LOSS"
         );
-    
+
       const totalPnl =
         closedTrades.reduce(
           (sum,trade) =>
@@ -3458,44 +4040,44 @@ export default{
             ),
           0
         );
-    
+
       const winRate =
         closedTrades.length > 0
-    
+
           ? (
               wins.length /
               closedTrades.length
             ) * 100
-    
+
           : 0;
-    
-    
+
+
       return Response.json(
         {
           active_trade:
             activeTrade||null,
-    
+
           unrealized_pnl_points:
             unrealizedPnlPoints,
-    
+
           recent_trades:
             trades,
-    
+
           statistics:{
             closed_trades:
               closedTrades.length,
-    
+
             wins:
               wins.length,
-    
+
             losses:
               losses.length,
-    
+
             win_rate:
               Number(
                 winRate.toFixed(2)
               ),
-    
+
             total_pnl_points:
               Number(
                 totalPnl.toFixed(2)
@@ -3510,28 +4092,30 @@ export default{
         }
       );
     }
+
+
     /* -----------------------------------------------------
        Paper Trade Performance API
     ----------------------------------------------------- */
-    
+
     if(
       url.pathname === "/api/paper-performance" &&
       method === "GET"
     ){
-    
+
       const requested =
         Number(
           url.searchParams.get(
             "limit"
           ) || 500
         );
-    
+
       const performance =
         await calculatePaperPerformance(
           env.DB,
           requested
         );
-    
+
       return Response.json(
         performance,
         {
@@ -3542,38 +4126,8 @@ export default{
         }
       );
     }
-    /* -----------------------------------------------------
-       Paper Trade Performance API
-    ----------------------------------------------------- */
-    
-    if(
-      url.pathname === "/api/paper-performance" &&
-      method === "GET"
-    ){
-    
-      const requested =
-        Number(
-          url.searchParams.get(
-            "limit"
-          ) || 500
-        );
-    
-      const performance =
-        await calculatePaperPerformance(
-          env.DB,
-          requested
-        );
-    
-      return Response.json(
-        performance,
-        {
-          headers:{
-            "cache-control":
-              "no-store"
-          }
-        }
-      );
-    }
+
+
     /* -----------------------------------------------------
        Latest
     ----------------------------------------------------- */
