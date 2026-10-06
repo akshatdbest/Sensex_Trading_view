@@ -5,9 +5,6 @@ import { getDecisionFromEvidence } from "./decision.js";
 import {
   calculatePaperPerformance
 } from "./paperPerformance.js";
-import {
-  calculatePaperPerformance
-} from "./paperPerformance.js";
 
 import {
   initPaperTradeDb,
