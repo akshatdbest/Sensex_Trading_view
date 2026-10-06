@@ -1,32 +1,9 @@
-# Sensex Signal Engine — Cloudflare Stage 1
+# Sensex Signal Engine — Stage 2
 
-Cloudflare Worker + D1 version.
+Dashboard now displays the MARKET_SNAPSHOT fields already present in `raw_payload`:
+RSI, trend, volume state/ratio, VWAP, VWAP distance, OR state/high/low, VPC zone/mid,
+ADR used %, VIX, session, and ATM strike.
 
-Flow:
-TradingView -> HTTPS webhook -> Cloudflare Worker -> D1 -> Dashboard
+Existing D1 data is preserved. No schema migration is required for this dashboard upgrade.
 
-Endpoints:
-- `/` dashboard
-- `/api/health`
-- `/api/latest`
-- `/api/signals?limit=50`
-- `/webhook/tradingview`
-
-The Worker creates the D1 `signals` table automatically on first request.
-
-TradingView message:
-
-```json
-{
-  "event": "OR_BREAKOUT",
-  "ticker": "{{ticker}}",
-  "exchange": "BSE",
-  "time": "{{time}}",
-  "interval": "{{interval}}",
-  "price": "{{close}}",
-  "open": "{{open}}",
-  "high": "{{high}}",
-  "low": "{{low}}",
-  "volume": "{{volume}}"
-}
-```
+Deploy with Wrangler from this folder.

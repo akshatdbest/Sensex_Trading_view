@@ -1,6 +1,6 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "sensex-signal-engine",
+  "name": "sensex-trading-view",
   "main": "src/index.js",
   "compatibility_date": "2026-10-02",
   "d1_databases": [
