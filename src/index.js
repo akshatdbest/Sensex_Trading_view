@@ -465,7 +465,7 @@ if(url.pathname==="/api/evidence"&&method==="GET"){
 }
 if(url.pathname==="/api/discovery"&&method==="GET"){
   const requested=Number(
-    url.searchParams.get("limit")||5000s
+    url.searchParams.get("limit")||5000
   );
 
   const minSamples=Number(
