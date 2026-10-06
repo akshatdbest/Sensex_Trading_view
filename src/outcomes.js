@@ -100,22 +100,19 @@ export async function calculateOutcomes(db, requestedLimit = 500) {
 
   const fetchLimit = Math.min(limit + 50, 2050);
 
-  const result = await db.prepare(`
-    SELECT
-      id,
-      received_at,
-      event_time,
-      ticker,
-      exchange,
-      timeframe,
-      event,
-      price,
-      raw_payload
+const result = await db
+  .prepare(`
+    SELECT id, received_at, event_time, ticker, exchange, timeframe, event, price, open, high, low, volume, raw_payload
     FROM signals
     WHERE event = 'MARKET_SNAPSHOT'
-    ORDER BY event_time ASC, id ASC
+      AND event_time IS NOT NULL
+    ORDER BY event_time DESC, id DESC
     LIMIT ?
-  `).bind(fetchLimit).all();
+  `)
+  .bind(fetchLimit)
+  .all();
+
+const sourceRows = (result.results || []).reverse();
 
   const rows = (result.results || [])
     .map(parseRow)
