@@ -2,6 +2,7 @@ import { calculateOutcomes } from "./outcomes.js";
 import { calculateEvidence } from "./evidence.js";
 import { calculateDiscovery } from "./discovery.js";
 import { getDecisionFromEvidence } from "./decision.js";
+import { runPaperTradeSelfTest } from "./paperTradeTest.js";
 
 import {
   initPaperTradeDb,
@@ -3345,7 +3346,30 @@ export default{
     /* -----------------------------------------------------
        Paper Trade API
     ----------------------------------------------------- */
+/* -----------------------------------------------------
+   Paper Trade Self-Test
+----------------------------------------------------- */
 
+    if(
+      url.pathname==="/api/paper-trade/test" &&
+      method==="GET"
+    ){
+    
+      const result =
+        await runPaperTradeSelfTest(
+          env.DB
+        );
+    
+      return Response.json(
+        result,
+        {
+          headers:{
+            "cache-control":
+              "no-store"
+          }
+        }
+      );
+    }
     if(
       url.pathname==="/api/paper-trade" &&
       method==="GET"
