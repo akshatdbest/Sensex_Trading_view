@@ -11,7 +11,24 @@ main{max-width:1500px;margin:auto;padding:25px 28px 50px}.eyebrow{color:var(--mu
 .panel{margin-top:16px;padding:18px}.panel-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px}.panel-title{font-size:14px;font-weight:750}.panel-note{font-size:11px;color:var(--muted)}
 .state-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:9px}.state{background:var(--panel2);border:1px solid #1c242d;border-radius:9px;padding:12px}.state span{display:block;color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.1em}.state b{display:block;margin-top:7px;font-size:13px}.state small{display:block;margin-top:4px;color:#596572;font-size:10px}
 .section-title{margin:24px 0 10px;color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.15em}.tablewrap{overflow:auto;border:1px solid var(--line);border-radius:10px}table{width:100%;border-collapse:collapse;min-width:1220px;background:#0e1318}th,td{text-align:left;padding:11px 10px;border-bottom:1px solid #1b222a;font-size:11px;white-space:nowrap}th{position:sticky;top:0;background:#121820;color:#7f8b99;font-size:9px;text-transform:uppercase;letter-spacing:.11em;z-index:1}tr:last-child td{border-bottom:0}tbody tr:hover{background:#121920}.pill{display:inline-flex;padding:4px 7px;border-radius:6px;font-size:9px;font-weight:800;letter-spacing:.05em;background:#141a21;border:1px solid #222c36}.pill.green{color:var(--green);border-color:rgba(66,211,146,.22)}.pill.red{color:var(--red);border-color:rgba(255,101,115,.22)}.pill.amber{color:var(--amber);border-color:rgba(244,201,93,.22)}.pill.blue{color:var(--accent);border-color:rgba(90,169,255,.22)}
-.empty{text-align:center;padding:35px;color:var(--muted);font-size:12px}.footer{text-align:center;color:#4f5a66;font-size:10px;margin-top:22px}
+.evidence-summary{display:grid;grid-template-columns:1.3fr repeat(4,1fr);gap:9px;margin-bottom:14px}
+.evidence-card{background:var(--panel2);border:1px solid #1c242d;border-radius:9px;padding:13px}
+.evidence-card span{display:block;color:var(--muted);font-size:9px;text-transform:uppercase;letter-spacing:.1em}
+.evidence-card b{display:block;margin-top:7px;font-size:15px}
+.evidence-card small{display:block;margin-top:5px;color:#596572;font-size:10px}
+.evidence-good{color:var(--green)}
+.evidence-bad{color:var(--red)}
+.evidence-neutral{color:var(--amber)}
+.evidence-table{width:100%;border-collapse:collapse;min-width:900px;background:#0e1318}
+.evidence-table th,.evidence-table td{text-align:left;padding:10px;border-bottom:1px solid #1b222a;font-size:11px;white-space:nowrap}
+.evidence-table th{background:#121820;color:#7f8b99;font-size:9px;text-transform:uppercase;letter-spacing:.1em}
+.evidence-table tr:last-child td{border-bottom:0}
+.evidence-table .positive{color:var(--green)}
+.evidence-table .negative{color:var(--red)}
+.evidence-table .neutral{color:var(--amber)}
+.evidence-warning{padding:13px;border:1px solid rgba(244,201,93,.22);border-radius:9px;background:rgba(244,201,93,.04);color:var(--amber);font-size:11px;margin-bottom:14px}
+@media(max-width:1150px){.evidence-summary{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:700px){.evidence-summary{grid-template-columns:1fr 1fr}}.empty{text-align:center;padding:35px;color:var(--muted);font-size:12px}.footer{text-align:center;color:#4f5a66;font-size:10px;margin-top:22px}
 @media(max-width:1150px){.cards{grid-template-columns:repeat(2,1fr)}.state-grid{grid-template-columns:repeat(3,1fr)}}@media(max-width:700px){.topbar,main{padding-left:14px;padding-right:14px}.hero{align-items:flex-start;flex-direction:column}.hero-right{text-align:left}.cards{grid-template-columns:1fr}.state-grid{grid-template-columns:repeat(2,1fr)}.big{font-size:27px}}
 </style></head>
 <body>
@@ -26,6 +43,16 @@ main{max-width:1500px;margin:auto;padding:25px 28px 50px}.eyebrow{color:var(--mu
 </section>
 <section class="panel"><div class="panel-head"><div class="panel-title">Current market state</div><div class="panel-note">Values are sourced directly from the TradingView snapshot</div></div>
 <div class="state-grid" id="stateGrid"></div></section>
+<section class="panel">
+<div class="panel-head">
+  <div class="panel-title">Historical Evidence</div>
+  <div class="panel-note">Historical SENSEX outcomes · minimum 20 samples for dashboard evidence</div>
+</div>
+
+<div id="evidenceContent">
+  <div class="empty">Loading historical evidence...</div>
+</div>
+</section>
 <section class="panel"><div class="panel-head"><div class="panel-title">Snapshot history</div><div class="panel-note">Latest 50 · auto-refresh 3 sec</div></div>
 <div class="tablewrap"><table><thead><tr><th>Time</th><th>Price</th><th>RSI</th><th>Trend</th><th>Volume</th><th>Ratio</th><th>VWAP</th><th>VWAP Dist</th><th>OR State</th><th>VPC Zone</th><th>ADR</th><th>VIX</th><th>Session</th><th>ATM</th></tr></thead><tbody id="history"></tbody></table></div></section>
 <section class="panel"><div class="panel-head"><div class="panel-title">Signal event log</div><div class="panel-note">Breakouts, retests and other TradingView events</div></div>
@@ -56,7 +83,339 @@ function renderState(s,p){$('stateGrid').innerHTML=[
  detail("OR low",n(p.or_low),"Opening range floor"),
  detail("Event",s.event,"TradingView event")
  ].join("")}
-async function refresh(){try{const response=await fetch("/api/signals?limit=50",{cache:"no-store"});if(!response.ok)throw new Error("HTTP "+response.status);const d=await response.json();const rows=d.signals||[];const snapshots=rows.filter(r=>r.event==="MARKET_SNAPSHOT");const s=snapshots[0]||rows[0];
+ function evidencePct(v){
+  if(v==null||Number.isNaN(Number(v))) return "—";
+  return Number(v).toFixed(1)+"%";
+}
+
+function evidenceMove(v){
+  if(v==null||Number.isNaN(Number(v))) return "—";
+
+  const x=Number(v);
+
+  return (x>0?"+":"")+x.toFixed(2);
+}
+
+function evidenceClass(v){
+  if(v==null||Number.isNaN(Number(v))) return "neutral";
+
+  const x=Number(v);
+
+  if(x>0) return "positive";
+  if(x<0) return "negative";
+
+  return "neutral";
+}
+
+function evidenceStrength(samples){
+  if(samples>=100) return "STRONGER";
+  if(samples>=50) return "MODERATE";
+  if(samples>=20) return "LOW";
+  if(samples>=10) return "VERY LOW";
+
+  return "INSUFFICIENT";
+}
+
+function renderEvidence(data){
+
+  const container=$("evidenceContent");
+
+  if(!data || !data.current_state){
+    container.innerHTML=
+      '<div class="empty">Historical evidence unavailable.</div>';
+
+    return;
+  }
+
+  const current=data.current_state;
+  const currentEvidence=data.current_state_evidence;
+
+  const currentMatches=
+    currentEvidence
+      ? Math.max(
+          ...["1m","5m","10m","20m"]
+            .map(h=>currentEvidence.outcomes[h]?.samples||0)
+        )
+      : 0;
+
+  const strength=evidenceStrength(currentMatches);
+
+  let html="";
+
+  html+='<div class="evidence-warning">';
+  html+="Current state: <strong>";
+  html+=txt(current.rsi_bucket)+" · ";
+  html+=txt(current.trend)+" · ";
+  html+=txt(current.volume_state)+" · ";
+  html+=txt(current.vwap)+" · ";
+  html+=txt(current.or_state)+" · ";
+  html+=txt(current.vpc_zone)+" · ";
+  html+=txt(current.session);
+  html+="</strong><br>";
+  html+="Historical matches: <strong>"+currentMatches+"</strong> · ";
+  html+="Evidence strength: <strong>"+strength+"</strong>";
+  html+="</div>";
+
+  html+='<div class="evidence-summary">';
+
+  for(const horizon of ["1m","5m","10m","20m"]){
+
+    const o=
+      currentEvidence?.outcomes?.[horizon];
+
+    if(!o){
+      html+=
+        '<div class="evidence-card">'+
+        '<span>'+horizon+'</span>'+
+        '<b>—</b>'+
+        '<small>No data</small>'+
+        '</div>';
+
+      continue;
+    }
+
+    html+=
+      '<div class="evidence-card">'+
+      '<span>'+horizon+'</span>'+
+      '<b class="'+
+      evidenceClass(o.avg_move_points)+
+      '">'+
+      evidenceMove(o.avg_move_points)+
+      ' pts</b>'+
+      '<small>'+
+      evidencePct(o.up_pct)+
+      ' UP · '+
+      evidencePct(o.down_pct)+
+      ' DOWN · '+
+      o.samples+
+      ' samples</small>'+
+      '</div>';
+  }
+
+  html+="</div>";
+
+  /*
+   * Factor evidence
+   */
+
+  html+='<div class="section-title">Factor Evidence</div>';
+
+  html+='<div class="tablewrap">';
+  html+='<table class="evidence-table">';
+  html+="<thead><tr>";
+  html+="<th>Factor</th>";
+  html+="<th>Value</th>";
+  html+="<th>Samples</th>";
+  html+="<th>5m UP</th>";
+  html+="<th>5m Avg</th>";
+  html+="<th>10m UP</th>";
+  html+="<th>10m Avg</th>";
+  html+="<th>20m UP</th>";
+  html+="<th>20m Avg</th>";
+  html+="</tr></thead><tbody>";
+
+  const factors=data.factors||[];
+
+  for(const factorGroup of factors){
+
+    for(const item of factorGroup){
+
+      const o5=item.outcomes?.["5m"];
+      const o10=item.outcomes?.["10m"];
+      const o20=item.outcomes?.["20m"];
+
+      const samples=Math.max(
+        o5?.samples||0,
+        o10?.samples||0,
+        o20?.samples||0
+      );
+
+      if(samples<20) continue;
+
+      html+="<tr>";
+
+      html+="<td>"+txt(item.factor)+"</td>";
+      html+="<td><strong>"+txt(item.value)+"</strong></td>";
+      html+="<td>"+samples+"</td>";
+
+      html+='<td class="'+
+        evidenceClass(
+          o5?.up_pct-50
+        )+
+        '">'+
+        evidencePct(o5?.up_pct)+
+        "</td>";
+
+      html+='<td class="'+
+        evidenceClass(
+          o5?.avg_move_points
+        )+
+        '">'+
+        evidenceMove(o5?.avg_move_points)+
+        "</td>";
+
+      html+='<td class="'+
+        evidenceClass(
+          o10?.up_pct-50
+        )+
+        '">'+
+        evidencePct(o10?.up_pct)+
+        "</td>";
+
+      html+='<td class="'+
+        evidenceClass(
+          o10?.avg_move_points
+        )+
+        '">'+
+        evidenceMove(o10?.avg_move_points)+
+        "</td>";
+
+      html+='<td class="'+
+        evidenceClass(
+          o20?.up_pct-50
+        )+
+        '">'+
+        evidencePct(o20?.up_pct)+
+        "</td>";
+
+      html+='<td class="'+
+        evidenceClass(
+          o20?.avg_move_points
+        )+
+        '">'+
+        evidenceMove(o20?.avg_move_points)+
+        "</td>";
+
+      html+="</tr>";
+    }
+  }
+
+  html+="</tbody></table></div>";
+
+  /*
+   * Exact historical combinations
+   */
+
+  html+='<div class="section-title">Historical Combinations</div>';
+
+  const combinations=data.combinations||[];
+
+  const usableCombinations=
+    combinations.filter(group=>{
+      return ["1m","5m","10m","20m"].some(
+        h=>
+          (group.outcomes?.[h]?.samples||0)>=20
+      );
+    });
+
+  if(!usableCombinations.length){
+
+    html+=
+      '<div class="evidence-warning">'+
+      "No exact market-state combination has "+
+      "20+ historical samples yet. "+
+      "Continue collecting data."+
+      "</div>";
+
+  }else{
+
+    html+='<div class="tablewrap">';
+    html+='<table class="evidence-table">';
+    html+="<thead><tr>";
+    html+="<th>Market State</th>";
+    html+="<th>Samples</th>";
+    html+="<th>5m UP</th>";
+    html+="<th>5m Avg</th>";
+    html+="<th>10m UP</th>";
+    html+="<th>10m Avg</th>";
+    html+="<th>20m UP</th>";
+    html+="<th>20m Avg</th>";
+    html+="</tr></thead><tbody>";
+
+    for(const group of usableCombinations){
+
+      const o5=group.outcomes["5m"];
+      const o10=group.outcomes["10m"];
+      const o20=group.outcomes["20m"];
+
+      html+="<tr>";
+
+      html+="<td>"+txt(group.signature)+"</td>";
+
+      html+="<td>"+
+        Math.max(
+          o5?.samples||0,
+          o10?.samples||0,
+          o20?.samples||0
+        )+
+        "</td>";
+
+      html+='<td class="'+
+        evidenceClass(
+          (o5?.up_pct??50)-50
+        )+
+        '">'+
+        evidencePct(o5?.up_pct)+
+        "</td>";
+
+      html+='<td class="'+
+        evidenceClass(
+          o5?.avg_move_points
+        )+
+        '">'+
+        evidenceMove(o5?.avg_move_points)+
+        "</td>";
+
+      html+='<td class="'+
+        evidenceClass(
+          (o10?.up_pct??50)-50
+        )+
+        '">'+
+        evidencePct(o10?.up_pct)+
+        "</td>";
+
+      html+='<td class="'+
+        evidenceClass(
+          o10?.avg_move_points
+        )+
+        '">'+
+        evidenceMove(o10?.avg_move_points)+
+        "</td>";
+
+      html+='<td class="'+
+        evidenceClass(
+          (o20?.up_pct??50)-50
+        )+
+        '">'+
+        evidencePct(o20?.up_pct)+
+        "</td>";
+
+      html+='<td class="'+
+        evidenceClass(
+          o20?.avg_move_points
+        )+
+        '">'+
+        evidenceMove(o20?.avg_move_points)+
+        "</td>";
+
+      html+="</tr>";
+    }
+
+    html+="</tbody></table></div>";
+  }
+
+  container.innerHTML=html;
+}
+async function refresh(){try{const response=await fetch("/api/signals?limit=50",{cache:"no-store"});if(!response.ok)throw new Error("HTTP "+response.status);const d=await response.json();const evidenceResponse=await fetch(
+  "/api/evidence?limit=5000&minSamples=20",
+  {cache:"no-store"}
+);
+
+if(evidenceResponse.ok){
+  const evidence=await evidenceResponse.json();
+  renderEvidence(evidence);
+}
+const rows=d.signals||[];const snapshots=rows.filter(r=>r.event==="MARKET_SNAPSHOT");const s=snapshots[0]||rows[0];
 $('status').innerHTML='<span class="dot"></span><span>'+(s?"LIVE":"WAITING")+'</span>';$('status').style.color=s?"var(--green)":"var(--amber)";
 if(!s){$('stateGrid').innerHTML='<div class="empty" style="grid-column:1/-1">Waiting for TradingView snapshot...</div>';$('history').innerHTML="";$('events').innerHTML="";return}
 const p=s.raw_payload||{};const trend=cls(p.trend);const vol=cls(p.volume_state);const rsi=Number(p.rsi);const previous=snapshots[1];const delta=previous?Number(s.price)-Number(previous.price):null;
