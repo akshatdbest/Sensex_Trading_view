@@ -487,30 +487,32 @@ if(url.pathname==="/api/discovery"&&method==="GET"){
       }
     }
   );
-}
-if(url.pathname==="/api/decision"&&method==="GET"){
-  const requested=Number(
-    url.searchParams.get("limit")||5000
-  );
+}if(url.pathname==="/api/decision"&&method==="GET"){
+  const requested=Number(url.searchParams.get("limit")||5000);
 
-  const evidence=await calculateEvidence(
-    env.DB,
-    requested,
-    20
-  );
+  const evidence=await calculateEvidence(env.DB,requested,20);
 
-  const decision=getDecisionFromEvidence(
-    evidence.current_state_evidence
-  );
+  const currentEvidence=evidence.current_state_evidence;
+
+  const five=currentEvidence?.outcomes?.["5m"];
+  const ten=currentEvidence?.outcomes?.["10m"];
+
+  const normalizedEvidence=currentEvidence ? {
+    ...currentEvidence,
+    samples:Math.min(
+      Number(five?.samples||0),
+      Number(ten?.samples||0)
+    )
+  } : null;
+
+  const decision=getDecisionFromEvidence(normalizedEvidence);
 
   return Response.json({
     generated_at:new Date().toISOString(),
     current_state:evidence.current_state||null,
     decision
   },{
-    headers:{
-      "cache-control":"no-store"
-    }
+    headers:{"cache-control":"no-store"}
   });
 }
 if(url.pathname==="/api/latest"&&method==="GET"){const rows=await getSignals(env.DB,1);return Response.json({signal:rows[0]||null})}if(url.pathname==="/api/signals"&&method==="GET"){const requested=Number(url.searchParams.get("limit")||50),limit=Math.max(1,Math.min(Number.isFinite(requested)?requested:50,200));return Response.json({signals:await getSignals(env.DB,limit)})}if(url.pathname==="/webhook/tradingview"&&method==="POST"){let payload;try{payload=await request.json()}catch{return Response.json({error:"Webhook body must be valid JSON"},{status:400})}const ticker=String(payload.ticker||payload.symbol||""),event=String(payload.event||"");if(!ticker||!event)return Response.json({error:"ticker/symbol and event are required"},{status:400});const result=await env.DB.prepare(`INSERT INTO signals (received_at,event_time,ticker,exchange,timeframe,event,price,open,high,low,volume,raw_payload) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`).bind(new Date().toISOString(),parseTime(payload.time),ticker,String(payload.exchange||""),String(payload.interval||payload.timeframe||""),event,num(payload.price??payload.close),num(payload.open),num(payload.high),num(payload.low),num(payload.volume),JSON.stringify(payload)).run();return Response.json({status:"accepted",signal_id:result.meta?.last_row_id??null,bias:biasFor(event)})}return Response.json({error:"Not found"},{status:404})}};
