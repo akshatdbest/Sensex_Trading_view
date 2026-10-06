@@ -66,7 +66,7 @@ async function refresh() {
     );
 
     if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
+      throw new Error("HTTP " + response.status);
     }
 
     const d = await response.json();
