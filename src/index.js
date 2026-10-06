@@ -3,6 +3,7 @@ import { calculateEvidence } from "./evidence.js";
 import { calculateDiscovery } from "./discovery.js";
 import { getDecisionFromEvidence } from "./decision.js";
 import { runPaperTradeSelfTest } from "./paperTradeTest.js";
+import { runPaperTradeIntegrationTest } from "./paperTradeIntegrationTest.js";
 
 import {
   initPaperTradeDb,
@@ -3515,7 +3516,30 @@ export default{
       );
     }
 
-
+    /* -----------------------------------------------------
+       Paper Trade Integration Test
+    ----------------------------------------------------- */
+    
+    if(
+      url.pathname==="/api/paper-trade/integration-test" &&
+      method==="GET"
+    ){
+    
+      const result =
+        await runPaperTradeIntegrationTest(
+          env.DB
+        );
+    
+      return Response.json(
+        result,
+        {
+          headers:{
+            "cache-control":
+              "no-store"
+          }
+        }
+      );
+    }
     /* -----------------------------------------------------
        Latest
     ----------------------------------------------------- */
