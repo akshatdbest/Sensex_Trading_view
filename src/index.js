@@ -158,39 +158,44 @@ function renderEvidence(data){
 
   html+='<div class="evidence-summary">';
 
-  for(const horizon of ["1m","5m","10m","20m"]){
+ for(const horizon of ["1m","5m","10m","20m"]){
 
-    const o=
-      currentEvidence?.outcomes?.[horizon];
+  const o=
+    currentEvidence?.outcomes?.[horizon];
 
-    if(!o){
-      html+=
-        '<div class="evidence-card">'+
-        '<span>'+horizon+'</span>'+
-        '<b>—</b>'+
-        '<small>No data</small>'+
-        '</div>';
+  const samples=o?.samples||0;
 
-      continue;
-    }
+  if(!o || samples<20){
 
     html+=
       '<div class="evidence-card">'+
       '<span>'+horizon+'</span>'+
-      '<b class="'+
-      evidenceClass(o.avg_move_points)+
-      '">'+
-      evidenceMove(o.avg_move_points)+
-      ' pts</b>'+
+      '<b class="evidence-neutral">INSUFFICIENT</b>'+
       '<small>'+
-      evidencePct(o.up_pct)+
-      ' UP · '+
-      evidencePct(o.down_pct)+
-      ' DOWN · '+
-      o.samples+
-      ' samples</small>'+
+      samples+
+      ' samples · 20 required</small>'+
       '</div>';
+
+    continue;
   }
+
+  html+=
+    '<div class="evidence-card">'+
+    '<span>'+horizon+'</span>'+
+    '<b class="'+
+    evidenceClass(o.avg_move_points)+
+    '">'+
+    evidenceMove(o.avg_move_points)+
+    ' pts</b>'+
+    '<small>'+
+    evidencePct(o.up_pct)+
+    ' UP · '+
+    evidencePct(o.down_pct)+
+    ' DOWN · '+
+    o.samples+
+    ' samples</small>'+
+    '</div>';
+}
 
   html+="</div>";
 
