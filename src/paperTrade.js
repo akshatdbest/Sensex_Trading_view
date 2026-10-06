@@ -10,8 +10,10 @@
 // - P&L is measured in SENSEX points.
 // - Keep this intentionally simple for the first end-to-end model.
 
+
 const DEFAULT_STOP_POINTS = 50;
 const DEFAULT_TARGET_POINTS = 100;
+
 
 const VALID_DIRECTIONS = new Set([
   "CALL",
@@ -97,8 +99,9 @@ function normalizeDirection(value){
 
 function normalizeTime(value){
 
-  if(!value)
+  if(!value){
     return new Date().toISOString();
+  }
 
   const d = new Date(value);
 
@@ -145,6 +148,14 @@ async function getActivePaperTrade(db){
 // ------------------------------------------------------------
 // Get recent trades
 // ------------------------------------------------------------
+//
+// Returns both OPEN and CLOSED trades.
+//
+// The dashboard can use this list for the
+// collapsible Trade History section.
+//
+// The most recent trade is returned first.
+//
 
 async function getPaperTrades(db, limit = 50){
 
@@ -178,7 +189,9 @@ async function getPaperTrades(db, limit = 50){
       FROM paper_trades
       ORDER BY id DESC
       LIMIT ?
-    `).bind(safeLimit).all();
+    `)
+    .bind(safeLimit)
+    .all();
 
   return result.results || [];
 }
@@ -204,7 +217,8 @@ async function openPaperTrade(
   const normalizedDirection =
     normalizeDirection(direction);
 
-  const price = num(entryPrice);
+  const price =
+    num(entryPrice);
 
   if(!normalizedDirection){
 
@@ -222,6 +236,9 @@ async function openPaperTrade(
     };
   }
 
+
+  // Never allow more than one active paper trade.
+
   const existing =
     await getActivePaperTrade(db);
 
@@ -233,6 +250,7 @@ async function openPaperTrade(
       trade: existing
     };
   }
+
 
   const samples =
     Number(evidenceSamples || 0);
@@ -246,11 +264,13 @@ async function openPaperTrade(
     };
   }
 
+
   const stop =
     Number(stopPoints);
 
   const target =
     Number(targetPoints);
+
 
   if(
     !Number.isFinite(stop) ||
@@ -263,6 +283,7 @@ async function openPaperTrade(
     };
   }
 
+
   if(
     !Number.isFinite(target) ||
     target <= 0
@@ -274,25 +295,35 @@ async function openPaperTrade(
     };
   }
 
+
   let stopLoss;
   let targetPrice;
 
+
   if(normalizedDirection === "CALL"){
 
-    stopLoss = price - stop;
-    targetPrice = price + target;
+    stopLoss =
+      price - stop;
+
+    targetPrice =
+      price + target;
 
   }else{
 
-    stopLoss = price + stop;
-    targetPrice = price - target;
+    stopLoss =
+      price + stop;
+
+    targetPrice =
+      price - target;
   }
+
 
   const createdAt =
     new Date().toISOString();
 
   const normalizedEntryTime =
     normalizeTime(entryTime);
+
 
   const result =
     await db.prepare(`
@@ -324,7 +355,7 @@ async function openPaperTrade(
         NULL,
         NULL,
         NULL,
-        NULL,
+        ?,
         ?,
         ?,
         ?
@@ -337,14 +368,17 @@ async function openPaperTrade(
       price,
       stopLoss,
       targetPrice,
+      null,
       decisionReason || "",
       samples,
       createdAt
     )
     .run();
 
+
   const tradeId =
     result.meta?.last_row_id ?? null;
+
 
   return {
     opened: true,
@@ -386,18 +420,23 @@ async function closePaperTrade(
     };
   }
 
+
   let pnlPoints;
+
 
   if(trade.direction === "CALL"){
 
     pnlPoints =
-      price - Number(trade.entry_price);
+      price -
+      Number(trade.entry_price);
 
   }else{
 
     pnlPoints =
-      Number(trade.entry_price) - price;
+      Number(trade.entry_price) -
+      price;
   }
+
 
   const result =
     pnlPoints > 0
@@ -406,8 +445,10 @@ async function closePaperTrade(
         ? "LOSS"
         : "FLAT";
 
+
   const normalizedExitTime =
     normalizeTime(exitTime);
+
 
   await db.prepare(`
     UPDATE paper_trades
@@ -431,17 +472,28 @@ async function closePaperTrade(
   )
   .run();
 
+
   return {
     closed: true,
 
     trade: {
       ...trade,
+
       status: "CLOSED",
-      exit_time: normalizedExitTime,
-      exit_price: price,
+
+      exit_time:
+        normalizedExitTime,
+
+      exit_price:
+        price,
+
       result,
-      pnl_points: pnlPoints,
-      exit_reason: exitReason || "MANUAL"
+
+      pnl_points:
+        pnlPoints,
+
+      exit_reason:
+        exitReason || "MANUAL"
     }
   };
 }
@@ -457,6 +509,7 @@ async function closePaperTrade(
 //
 // If both SL and target are touched in the same 1-minute
 // candle, the exact sequence is unknown.
+//
 // For MVP we use the conservative assumption:
 // SL is considered hit first.
 // ------------------------------------------------------------
@@ -474,12 +527,16 @@ async function evaluatePaperTrade(
     };
   }
 
+
   const payload =
-    snapshot.raw_payload || snapshot;
+    snapshot.raw_payload ||
+    snapshot;
+
 
   const eventTime =
     snapshot.event_time ||
     payload.time;
+
 
   const currentPrice =
     num(
@@ -488,11 +545,13 @@ async function evaluatePaperTrade(
       payload.close
     );
 
+
   const high =
     num(
       snapshot.high ??
       payload.high
     );
+
 
   const low =
     num(
@@ -500,31 +559,37 @@ async function evaluatePaperTrade(
       payload.low
     );
 
+
   if(currentPrice === null){
 
     return {
       action: "WAIT",
-      reason: "Current price unavailable.",
+      reason:
+        "Current price unavailable.",
       trade
     };
   }
+
 
   /*
    * Never evaluate the same snapshot that opened
    * the trade.
    */
+
   if(
     eventTime &&
     new Date(eventTime).getTime() <=
-    new Date(trade.entry_time).getTime()
+      new Date(trade.entry_time).getTime()
   ){
 
     return {
       action: "WAIT",
-      reason: "Waiting for a snapshot after entry.",
+      reason:
+        "Waiting for a snapshot after entry.",
       trade
     };
   }
+
 
   const stop =
     Number(trade.stop_loss);
@@ -532,12 +597,14 @@ async function evaluatePaperTrade(
   const target =
     Number(trade.target);
 
+
   /*
    * CALL:
    *
    * target -> high reaches target
    * stop   -> low reaches stop
    */
+
   if(trade.direction === "CALL"){
 
     const stopHit =
@@ -545,15 +612,18 @@ async function evaluatePaperTrade(
         ? low <= stop
         : currentPrice <= stop;
 
+
     const targetHit =
       high !== null
         ? high >= target
         : currentPrice >= target;
 
+
     /*
      * Conservative rule when both happen in
      * the same minute.
      */
+
     if(stopHit){
 
       return closePaperTrade(
@@ -564,6 +634,7 @@ async function evaluatePaperTrade(
         "STOP_LOSS"
       );
     }
+
 
     if(targetHit){
 
@@ -576,10 +647,15 @@ async function evaluatePaperTrade(
       );
     }
 
+
     return {
       action: "HOLD",
+
       trade,
-      current_price: currentPrice,
+
+      current_price:
+        currentPrice,
+
       unrealized_pnl_points:
         currentPrice -
         Number(trade.entry_price)
@@ -601,10 +677,12 @@ async function evaluatePaperTrade(
         ? high >= stop
         : currentPrice >= stop;
 
+
     const targetHit =
       low !== null
         ? low <= target
         : currentPrice <= target;
+
 
     /*
      * Conservative rule when both happen in
@@ -622,6 +700,7 @@ async function evaluatePaperTrade(
       );
     }
 
+
     if(targetHit){
 
       return closePaperTrade(
@@ -633,19 +712,26 @@ async function evaluatePaperTrade(
       );
     }
 
+
     return {
       action: "HOLD",
+
       trade,
-      current_price: currentPrice,
+
+      current_price:
+        currentPrice,
+
       unrealized_pnl_points:
         Number(trade.entry_price) -
         currentPrice
     };
   }
 
+
   return {
     action: "WAIT",
-    reason: "Unknown trade direction.",
+    reason:
+      "Unknown trade direction.",
     trade
   };
 }
@@ -679,16 +765,20 @@ async function processPaperTrade(
 
     return {
       action: "NO_DECISION",
-      reason: "Decision data unavailable."
+      reason:
+        "Decision data unavailable."
     };
   }
+
 
   const activeTrade =
     await getActivePaperTrade(db);
 
+
   /*
    * An existing trade always gets priority.
    */
+
   if(activeTrade){
 
     return {
@@ -697,10 +787,12 @@ async function processPaperTrade(
     };
   }
 
+
   const direction =
     normalizeDirection(
       decision.decision
     );
+
 
   if(!direction){
 
@@ -712,16 +804,22 @@ async function processPaperTrade(
     };
   }
 
+
   const evidence =
     decision.evidence || {};
 
+
   const samples =
-    Number(evidence.samples || 0);
+    Number(
+      evidence.samples || 0
+    );
+
 
   const price =
     num(
       currentState?.price
     );
+
 
   if(price === null){
 
@@ -731,6 +829,7 @@ async function processPaperTrade(
         "Current SENSEX price is unavailable."
     };
   }
+
 
   return openPaperTrade(
     db,
