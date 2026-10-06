@@ -1,19 +1,87 @@
+// src/discovery.js
+//
+// Stage 4D
+// ---------
+// Market regime + transition + candidate discovery engine.
+//
+// Purpose:
+//   Discover statistically interesting market states before introducing
+//   actual CALL / PUT trading signals.
+//
+// Important:
+//   This module is research-only.
+//   It does NOT generate trading recommendations.
+//
+// Added in Stage 4D:
+//   - Symmetric bullish / bearish regime classification
+//   - 2-factor candidate discovery
+//   - 3-factor candidate discovery
+//   - Regime transition discovery
+//   - MFE / MAE calculation
+//   - Evidence classification
+//   - EDGE / NO_EDGE / INSUFFICIENT classification
+//   - Candidate ranking
+//
+// Data source:
+//   signals table
+//   event = MARKET_SNAPSHOT
+//
+// Expected raw_payload fields:
+//   price
+//   rsi
+//   trend
+//   volume_state
+//   volume_ratio
+//   vwap
+//   vwap_distance
+//   or_state
+//   or_high
+//   or_low
+//   vpc_zone
+//   vpc_mid
+//   adr_used_pct
+//   vix
+//   session
+//   atm_strike
+//
+
 const HORIZONS = [
-  { key: "1m", minutes: 1, maxLagSeconds: 90 },
-  { key: "5m", minutes: 5, maxLagSeconds: 120 },
-  { key: "10m", minutes: 10, maxLagSeconds: 180 },
-  { key: "20m", minutes: 20, maxLagSeconds: 300 }
+  {
+    key: "1m",
+    minutes: 1,
+    toleranceMs: 75 * 1000
+  },
+  {
+    key: "5m",
+    minutes: 5,
+    toleranceMs: 90 * 1000
+  },
+  {
+    key: "10m",
+    minutes: 10,
+    toleranceMs: 90 * 1000
+  },
+  {
+    key: "20m",
+    minutes: 20,
+    toleranceMs: 120 * 1000
+  }
 ];
 
-const DISCOVERY_FACTORS = [
-  "rsi_bucket",
-  "trend",
-  "volume_state",
-  "vwap",
-  "or_state",
-  "vpc_zone",
-  "session"
-];
+const FACTOR_LABELS = {
+  rsi_bucket: "RSI",
+  trend: "Trend",
+  volume_state: "Volume",
+  vwap: "VWAP",
+  or_state: "OR",
+  vpc_zone: "VPC",
+  session: "Session",
+  regime: "Regime"
+};
+
+// Controlled combinations.
+// We intentionally do NOT brute-force every possible combination.
+// That would create a large multiple-testing / overfitting problem.
 
 const TWO_FACTOR_PAIRS = [
   ["rsi_bucket", "trend"],
@@ -44,195 +112,201 @@ const THREE_FACTOR_TRIPLES = [
   ["vwap", "vpc_zone", "session"]
 ];
 
-function num(v) {
-  if (v === undefined || v === null || v === "") {
-    return null;
-  }
+const MIN_EDGE_SAMPLES = 50;
+const MIN_MODERATE_SAMPLES = 50;
+const MIN_LOW_SAMPLES = 20;
 
-  const n = Number(v);
+const MIN_DIRECTIONAL_EDGE_PCT = 60;
+const MIN_AVG_MOVE_POINTS = 3;
 
+const MAX_TOP_CANDIDATES = 100;
+
+
+// ------------------------------------------------------------
+// Utility
+// ------------------------------------------------------------
+
+function safeNumber(value) {
+  const n = Number(value);
   return Number.isFinite(n) ? n : null;
 }
 
-function parseDate(v) {
-  if (!v) {
+function round(value, digits = 2) {
+  if (!Number.isFinite(value)) {
     return null;
   }
 
-  const d = new Date(v);
-
-  return Number.isNaN(d.getTime())
-    ? null
-    : d;
+  const factor = 10 ** digits;
+  return Math.round(value * factor) / factor;
 }
 
-function parseRow(row) {
-  let payload = {};
-
-  try {
-    payload = JSON.parse(
-      row.raw_payload || "{}"
-    );
-  } catch {
-    payload = {};
+function median(values) {
+  if (!values.length) {
+    return null;
   }
 
-  return {
-    id: row.id,
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
 
-    event_time: parseDate(
-      row.event_time || row.received_at
-    ),
+  if (sorted.length % 2 === 0) {
+    return (sorted[mid - 1] + sorted[mid]) / 2;
+  }
 
-    price: num(
-      row.price ?? payload.price
-    ),
-
-    payload
-  };
+  return sorted[mid];
 }
 
-function rsiBucket(rsi) {
+function pct(part, total) {
+  if (!total) {
+    return 0;
+  }
+
+  return (part / total) * 100;
+}
+
+
+// ------------------------------------------------------------
+// RSI bucket
+// ------------------------------------------------------------
+
+function getRsiBucket(rsi) {
   if (!Number.isFinite(rsi)) {
     return "UNKNOWN";
   }
 
-  if (rsi < 40) return "OVERSOLD";
-  if (rsi < 50) return "WEAK";
-  if (rsi < 60) return "MID";
-  if (rsi < 70) return "STRONG";
+  if (rsi < 40) {
+    return "WEAK";
+  }
+
+  if (rsi < 60) {
+    return "MID";
+  }
+
+  if (rsi < 70) {
+    return "STRONG";
+  }
 
   return "OVERBOUGHT";
 }
 
-/*
- * ---------------------------------------------------------
- * REGIME CLASSIFICATION
- * ---------------------------------------------------------
- *
- * These are transparent descriptive classifications.
- * They are NOT trading signals.
- */
-function classifyRegime(row) {
-  const p = row.payload || {};
 
-  const rsi = num(p.rsi);
+// ------------------------------------------------------------
+// Regime classifier
+//
+// IMPORTANT:
+// These are descriptive research classifications.
+// They are NOT trading rules.
+// ------------------------------------------------------------
 
-  const volumeRatio = num(
-    p.volume_ratio
-  );
+function classifyRegime(snapshot) {
+  const rsi = safeNumber(snapshot.rsi);
+  const volumeRatio = safeNumber(snapshot.volume_ratio);
+  const adrPct = safeNumber(snapshot.adr_used_pct);
 
-  const trend =
-    String(p.trend || "UNKNOWN")
-      .toUpperCase();
+  const trend = String(snapshot.trend || "").toUpperCase();
+  const volumeState = String(snapshot.volume_state || "").toUpperCase();
+  const vwap = String(snapshot.vwap || "").toUpperCase();
+  const orState = String(snapshot.or_state || "").toUpperCase();
+  const vpcZone = String(snapshot.vpc_zone || "").toUpperCase();
 
-  const volume =
-    String(p.volume_state || "UNKNOWN")
-      .toUpperCase();
+  const breakoutUp =
+    orState === "BROKE_UP" ||
+    vpcZone === "BULL_ZONE" ||
+    vpcZone === "EXTENDED_UP";
 
-  const vwap =
-    String(p.vwap || "UNKNOWN")
-      .toUpperCase();
+  const breakoutDown =
+    orState === "BROKE_DOWN" ||
+    vpcZone === "BEAR_ZONE" ||
+    vpcZone === "EXTENDED_DOWN";
 
-  const orState =
-    String(p.or_state || "UNKNOWN")
-      .toUpperCase();
+  const highVolume =
+    volumeState === "HIGH" ||
+    (Number.isFinite(volumeRatio) && volumeRatio >= 1.5);
 
-  const vpc =
-    String(p.vpc_zone || "UNKNOWN")
-      .toUpperCase();
+  const lowVolume =
+    volumeState === "LOW" ||
+    (Number.isFinite(volumeRatio) && volumeRatio < 0.8);
 
-  const adr = num(
-    p.adr_used_pct
-  );
+  // ----------------------------------------------------------
+  // Strong directional momentum
+  // ----------------------------------------------------------
 
-  /*
-   * Strong upward momentum.
-   */
   if (
-    (
-      orState === "BROKE_UP" ||
-      vpc === "BULL_ZONE" ||
-      vpc === "EXTENDED_UP"
-    ) &&
+    breakoutUp &&
     vwap === "ABOVE" &&
-    (
-      trend === "BULL" ||
-      (rsi !== null && rsi >= 55)
-    ) &&
-    (
-      volume === "HIGH" ||
-      (
-        volumeRatio !== null &&
-        volumeRatio >= 1.5
-      )
-    )
+    (trend === "BULL" || (Number.isFinite(rsi) && rsi >= 55)) &&
+    highVolume
   ) {
     return "MOMENTUM_UP";
   }
 
-  /*
-   * Strong downward momentum.
-   */
   if (
-    (
-      orState === "BROKE_DOWN" ||
-      vpc === "BEAR_ZONE" ||
-      vpc === "EXTENDED_DOWN"
-    ) &&
+    breakoutDown &&
     vwap === "BELOW" &&
-    (
-      trend === "BEAR" ||
-      (rsi !== null && rsi <= 45)
-    ) &&
-    (
-      volume === "HIGH" ||
-      (
-        volumeRatio !== null &&
-        volumeRatio >= 1.5
-      )
-    )
+    (trend === "BEAR" || (Number.isFinite(rsi) && rsi <= 45)) &&
+    highVolume
   ) {
     return "MOMENTUM_DOWN";
   }
 
-  /*
-   * Potential upward mean reversion.
-   */
+  // ----------------------------------------------------------
+  // Mean reversion
+  // ----------------------------------------------------------
+
   if (
-    rsi !== null &&
+    Number.isFinite(rsi) &&
     rsi < 40 &&
     (
-      vpc === "BEAR_ZONE" ||
-      vpc === "EXTENDED_DOWN"
+      vpcZone === "BEAR_ZONE" ||
+      vpcZone === "EXTENDED_DOWN"
     )
   ) {
     return "MEAN_REVERSION_UP";
   }
 
-  /*
-   * Potential downward/exhaustion environment.
-   */
   if (
-    rsi !== null &&
+    Number.isFinite(rsi) &&
+    rsi > 60 &&
+    (
+      vpcZone === "BULL_ZONE" ||
+      vpcZone === "EXTENDED_UP"
+    )
+  ) {
+    return "MEAN_REVERSION_DOWN";
+  }
+
+  // ----------------------------------------------------------
+  // Exhaustion
+  // ----------------------------------------------------------
+
+  if (
+    Number.isFinite(rsi) &&
     rsi >= 70 &&
     (
-      vpc === "EXTENDED_UP" ||
-      (
-        adr !== null &&
-        adr >= 80
-      )
+      vpcZone === "EXTENDED_UP" ||
+      (Number.isFinite(adrPct) && adrPct >= 80)
     )
   ) {
     return "EXHAUSTION_UP";
   }
 
-  /*
-   * Low-volume sideways environment.
-   */
   if (
-    volume === "LOW" &&
-    rsi !== null &&
+    Number.isFinite(rsi) &&
+    rsi <= 30 &&
+    (
+      vpcZone === "EXTENDED_DOWN" ||
+      (Number.isFinite(adrPct) && adrPct >= 80)
+    )
+  ) {
+    return "EXHAUSTION_DOWN";
+  }
+
+  // ----------------------------------------------------------
+  // CHOP
+  // ----------------------------------------------------------
+
+  if (
+    lowVolume &&
+    Number.isFinite(rsi) &&
     rsi >= 45 &&
     rsi < 60 &&
     (
@@ -243,9 +317,10 @@ function classifyRegime(row) {
     return "CHOP";
   }
 
-  /*
-   * General bullish environment.
-   */
+  // ----------------------------------------------------------
+  // General directional regimes
+  // ----------------------------------------------------------
+
   if (
     trend === "BULL" &&
     vwap === "ABOVE"
@@ -253,9 +328,6 @@ function classifyRegime(row) {
     return "BULLISH_REGIME";
   }
 
-  /*
-   * General bearish environment.
-   */
   if (
     trend === "BEAR" &&
     vwap === "BELOW"
@@ -266,120 +338,308 @@ function classifyRegime(row) {
   return "NEUTRAL_REGIME";
 }
 
-/*
- * ---------------------------------------------------------
- * FUTURE OUTCOME
- * ---------------------------------------------------------
- */
+
+// ------------------------------------------------------------
+// Snapshot normalization
+// ------------------------------------------------------------
+
+function normalizeSnapshot(row) {
+  let payload = {};
+
+  try {
+    payload = JSON.parse(row.raw_payload || "{}");
+  } catch {
+    payload = {};
+  }
+
+  const price = safeNumber(
+    payload.price !== undefined
+      ? payload.price
+      : row.price
+  );
+
+  const rsi = safeNumber(payload.rsi);
+
+  const snapshot = {
+    id: row.id,
+    event_time: row.event_time,
+    received_at: row.received_at,
+
+    ticker: row.ticker,
+    exchange: row.exchange,
+    timeframe: row.timeframe,
+
+    price,
+
+    rsi,
+
+    trend: String(
+      payload.trend || "UNKNOWN"
+    ).toUpperCase(),
+
+    volume_state: String(
+      payload.volume_state || "UNKNOWN"
+    ).toUpperCase(),
+
+    volume_ratio: safeNumber(
+      payload.volume_ratio
+    ),
+
+    vwap: String(
+      payload.vwap || "UNKNOWN"
+    ).toUpperCase(),
+
+    vwap_distance: safeNumber(
+      payload.vwap_distance
+    ),
+
+    or_state: String(
+      payload.or_state || "UNKNOWN"
+    ).toUpperCase(),
+
+    or_high: safeNumber(
+      payload.or_high
+    ),
+
+    or_low: safeNumber(
+      payload.or_low
+    ),
+
+    vpc_zone: String(
+      payload.vpc_zone || "UNKNOWN"
+    ).toUpperCase(),
+
+    vpc_mid: safeNumber(
+      payload.vpc_mid
+    ),
+
+    adr_used_pct: safeNumber(
+      payload.adr_used_pct
+    ),
+
+    vix: safeNumber(
+      payload.vix
+    ),
+
+    session: String(
+      payload.session || "UNKNOWN"
+    ),
+
+    atm_strike: safeNumber(
+      payload.atm_strike
+    )
+  };
+
+  snapshot.rsi_bucket = getRsiBucket(
+    snapshot.rsi
+  );
+
+  snapshot.regime = classifyRegime(
+    snapshot
+  );
+
+  return snapshot;
+}
+
+
+// ------------------------------------------------------------
+// Binary search for future snapshot
+// ------------------------------------------------------------
 
 function findFuture(
-  rows,
-  targetTime,
-  maxLagSeconds
+  snapshots,
+  startIndex,
+  targetMs,
+  toleranceMs
 ) {
-  let low = 0;
-  let high = rows.length - 1;
-  let candidate = -1;
+  let left = startIndex + 1;
+  let right = snapshots.length - 1;
 
-  while (low <= high) {
-    const mid =
-      Math.floor(
-        (low + high) / 2
-      );
+  let best = null;
+  let bestDistance = Infinity;
 
-    if (
-      rows[mid].event_time.getTime() >=
-      targetTime.getTime()
-    ) {
-      candidate = mid;
-      high = mid - 1;
+  while (left <= right) {
+    const mid = Math.floor(
+      (left + right) / 2
+    );
+
+    const time = Date.parse(
+      snapshots[mid].event_time
+    );
+
+    const distance = Math.abs(
+      time - targetMs
+    );
+
+    if (distance < bestDistance) {
+      best = snapshots[mid];
+      bestDistance = distance;
+    }
+
+    if (time < targetMs) {
+      left = mid + 1;
     } else {
-      low = mid + 1;
+      right = mid - 1;
     }
   }
-
-  if (candidate === -1) {
-    return null;
-  }
-
-  const row = rows[candidate];
-
-  const lag =
-    (
-      row.event_time.getTime() -
-      targetTime.getTime()
-    ) / 1000;
 
   if (
-    lag < 0 ||
-    lag > maxLagSeconds
+    best &&
+    bestDistance <= toleranceMs
   ) {
+    return best;
+  }
+
+  return null;
+}
+
+
+// ------------------------------------------------------------
+// Outcome calculation
+//
+// Endpoint move:
+//   future.price - entry.price
+//
+// MFE:
+//   maximum favorable excursion between entry
+//   and horizon.
+//
+// MAE:
+//   maximum adverse excursion between entry
+//   and horizon.
+//
+// For a positive move:
+//   MFE = highest price - entry
+//   MAE = lowest price - entry
+//
+// For a negative move the same raw excursion values are retained.
+// This makes the statistics transparent.
+// ------------------------------------------------------------
+
+function calculateOutcome(
+  snapshots,
+  index,
+  horizon
+) {
+  const entry = snapshots[index];
+
+  if (!entry || !Number.isFinite(entry.price)) {
     return null;
   }
 
-  return row;
-}
+  const entryTime = Date.parse(
+    entry.event_time
+  );
 
-function outcomeFor(
-  row,
-  rows
-) {
-  const result = {};
-
-  for (const horizon of HORIZONS) {
-    const target =
-      new Date(
-        row.event_time.getTime() +
-        horizon.minutes * 60000
-      );
-
-    const future =
-      findFuture(
-        rows,
-        target,
-        horizon.maxLagSeconds
-      );
-
-    if (!future) {
-      result[horizon.key] = null;
-      continue;
-    }
-
-    const move =
-      future.price -
-      row.price;
-
-    result[horizon.key] = {
-      move_points:
-        Number(
-          move.toFixed(2)
-        ),
-
-      direction:
-        move > 0
-          ? "UP"
-          : move < 0
-            ? "DOWN"
-            : "FLAT"
-    };
+  if (!Number.isFinite(entryTime)) {
+    return null;
   }
 
-  return result;
+  const targetMs =
+    entryTime +
+    horizon.minutes * 60 * 1000;
+
+  const future = findFuture(
+    snapshots,
+    index,
+    targetMs,
+    horizon.toleranceMs
+  );
+
+  if (!future || !Number.isFinite(future.price)) {
+    return null;
+  }
+
+  const futureTime = Date.parse(
+    future.event_time
+  );
+
+  if (!Number.isFinite(futureTime)) {
+    return null;
+  }
+
+  const move =
+    future.price -
+    entry.price;
+
+  let maxPrice = entry.price;
+  let minPrice = entry.price;
+
+  // Walk through snapshots between entry and
+  // the selected future endpoint.
+  for (
+    let i = index + 1;
+    i < snapshots.length;
+    i++
+  ) {
+    const current = snapshots[i];
+
+    const currentTime = Date.parse(
+      current.event_time
+    );
+
+    if (
+      !Number.isFinite(currentTime) ||
+      currentTime > futureTime
+    ) {
+      break;
+    }
+
+    if (Number.isFinite(current.price)) {
+      maxPrice = Math.max(
+        maxPrice,
+        current.price
+      );
+
+      minPrice = Math.min(
+        minPrice,
+        current.price
+      );
+    }
+  }
+
+  const mfe =
+    maxPrice -
+    entry.price;
+
+  const mae =
+    minPrice -
+    entry.price;
+
+  let direction = "FLAT";
+
+  if (move > 0) {
+    direction = "UP";
+  } else if (move < 0) {
+    direction = "DOWN";
+  }
+
+  return {
+    target_time: future.event_time,
+    actual_time: future.event_time,
+    move_points: move,
+    direction,
+    mfe_points: mfe,
+    mae_points: mae
+  };
 }
 
-/*
- * ---------------------------------------------------------
- * STATISTICS
- * ---------------------------------------------------------
- */
 
-function createStats() {
+// ------------------------------------------------------------
+// Aggregate statistics
+// ------------------------------------------------------------
+
+function createEmptyStats() {
   return {
     samples: 0,
+
     up: 0,
     down: 0,
     flat: 0,
-    moves: []
+
+    moves: [],
+    mfe: [],
+    mae: []
   };
 }
 
@@ -391,132 +651,32 @@ function addOutcome(
     return;
   }
 
-  const move =
-    Number(
-      outcome.move_points
-    );
-
-  if (!Number.isFinite(move)) {
-    return;
-  }
-
   stats.samples++;
 
-  stats.moves.push(
-    move
-  );
-
-  if (move > 0) {
+  if (outcome.direction === "UP") {
     stats.up++;
-  } else if (move < 0) {
+  } else if (outcome.direction === "DOWN") {
     stats.down++;
   } else {
     stats.flat++;
   }
+
+  stats.moves.push(
+    outcome.move_points
+  );
+
+  stats.mfe.push(
+    outcome.mfe_points
+  );
+
+  stats.mae.push(
+    outcome.mae_points
+  );
 }
 
-function median(values) {
-  if (!values.length) {
-    return null;
-  }
-
-  const sorted =
-    [...values].sort(
-      (a, b) => a - b
-    );
-
-  const middle =
-    Math.floor(
-      sorted.length / 2
-    );
-
-  if (
-    sorted.length % 2 === 0
-  ) {
-    return (
-      (
-        sorted[middle - 1] +
-        sorted[middle]
-      ) / 2
-    );
-  }
-
-  return sorted[middle];
-}
-
-function finalizeStats(stats) {
-  if (
-    !stats ||
-    stats.samples === 0
-  ) {
-    return {
-      samples: 0,
-      up_pct: null,
-      down_pct: null,
-      flat_pct: null,
-      avg_move_points: null,
-      median_move_points: null
-    };
-  }
-
-  const sum =
-    stats.moves.reduce(
-      (a, b) => a + b,
-      0
-    );
-
-  return {
-    samples:
-      stats.samples,
-
-    up_pct:
-      Number(
-        (
-          stats.up /
-          stats.samples *
-          100
-        ).toFixed(2)
-      ),
-
-    down_pct:
-      Number(
-        (
-          stats.down /
-          stats.samples *
-          100
-        ).toFixed(2)
-      ),
-
-    flat_pct:
-      Number(
-        (
-          stats.flat /
-          stats.samples *
-          100
-        ).toFixed(2)
-      ),
-
-    avg_move_points:
-      Number(
-        (
-          sum /
-          stats.samples
-        ).toFixed(2)
-      ),
-
-    median_move_points:
-      Number(
-        median(stats.moves)
-          .toFixed(2)
-      )
-  };
-}
-
-function evidenceStrength(
-  samples
-) {
+function evidenceStrength(samples) {
   if (samples >= 100) {
-    return "STRONGER";
+    return "STRONG";
   }
 
   if (samples >= 50) {
@@ -527,490 +687,681 @@ function evidenceStrength(
     return "LOW";
   }
 
-  if (samples >= 10) {
-    return "VERY_LOW";
-  }
-
-  return "INSUFFICIENT";
+  return "VERY_LOW";
 }
 
-/*
- * ---------------------------------------------------------
- * STATE EXTRACTION
- * ---------------------------------------------------------
- */
+function classifyEvidence(
+  stats
+) {
+  const samples = stats.samples;
 
-function stateFor(row) {
-  const p =
-    row.payload || {};
+  if (samples < MIN_LOW_SAMPLES) {
+    return "INSUFFICIENT";
+  }
+
+  if (!samples) {
+    return "INSUFFICIENT";
+  }
+
+  const upPct =
+    pct(stats.up, samples);
+
+  const downPct =
+    pct(stats.down, samples);
+
+  const avgMove =
+    stats.moves.length
+      ? stats.moves.reduce(
+          (sum, value) => sum + value,
+          0
+        ) / stats.moves.length
+      : 0;
+
+  const directionalPct =
+    Math.max(
+      upPct,
+      downPct
+    );
+
+  const directionalMove =
+    Math.abs(avgMove);
+
+  if (
+    samples >= MIN_EDGE_SAMPLES &&
+    directionalPct >= MIN_DIRECTIONAL_EDGE_PCT &&
+    directionalMove >= MIN_AVG_MOVE_POINTS
+  ) {
+    return "EDGE";
+  }
+
+  if (
+    samples >= MIN_MODERATE_SAMPLES &&
+    (
+      directionalPct >= 55 ||
+      directionalMove >= 2
+    )
+  ) {
+    return "WATCH";
+  }
+
+  return "NO_EDGE";
+}
+
+function finalizeStats(stats) {
+  if (!stats.samples) {
+    return {
+      samples: 0,
+      up_pct: 0,
+      down_pct: 0,
+      flat_pct: 0,
+      avg_move_points: null,
+      median_move_points: null,
+      avg_mfe_points: null,
+      median_mfe_points: null,
+      avg_mae_points: null,
+      median_mae_points: null,
+      evidence_strength: "VERY_LOW",
+      classification: "INSUFFICIENT"
+    };
+  }
+
+  const avgMove =
+    stats.moves.reduce(
+      (sum, value) => sum + value,
+      0
+    ) / stats.moves.length;
+
+  const avgMfe =
+    stats.mfe.reduce(
+      (sum, value) => sum + value,
+      0
+    ) / stats.mfe.length;
+
+  const avgMae =
+    stats.mae.reduce(
+      (sum, value) => sum + value,
+      0
+    ) / stats.mae.length;
 
   return {
-    rsi_bucket:
-      rsiBucket(
-        num(p.rsi)
-      ),
+    samples: stats.samples,
 
-    trend:
-      String(
-        p.trend || "UNKNOWN"
-      ).toUpperCase(),
+    up_pct: round(
+      pct(stats.up, stats.samples),
+      2
+    ),
 
-    volume_state:
-      String(
-        p.volume_state ||
-        "UNKNOWN"
-      ).toUpperCase(),
+    down_pct: round(
+      pct(stats.down, stats.samples),
+      2
+    ),
 
-    vwap:
-      String(
-        p.vwap || "UNKNOWN"
-      ).toUpperCase(),
+    flat_pct: round(
+      pct(stats.flat, stats.samples),
+      2
+    ),
 
-    or_state:
-      String(
-        p.or_state || "UNKNOWN"
-      ).toUpperCase(),
+    avg_move_points: round(
+      avgMove,
+      2
+    ),
 
-    vpc_zone:
-      String(
-        p.vpc_zone || "UNKNOWN"
-      ).toUpperCase(),
+    median_move_points: round(
+      median(stats.moves),
+      2
+    ),
 
-    session:
-      String(
-        p.session || "UNKNOWN"
-      )
+    avg_mfe_points: round(
+      avgMfe,
+      2
+    ),
+
+    median_mfe_points: round(
+      median(stats.mfe),
+      2
+    ),
+
+    avg_mae_points: round(
+      avgMae,
+      2
+    ),
+
+    median_mae_points: round(
+      median(stats.mae),
+      2
+    ),
+
+    evidence_strength:
+      evidenceStrength(stats.samples),
+
+    classification:
+      classifyEvidence(stats)
   };
 }
 
-/*
- * ---------------------------------------------------------
- * FACTOR COMBINATION HELPERS
- * ---------------------------------------------------------
- */
 
-function validStateValue(
-  value
+// ------------------------------------------------------------
+// Build horizon statistics for a group
+// ------------------------------------------------------------
+
+function buildGroupOutcomes(
+  snapshots,
+  indices
 ) {
-  return (
-    value !== undefined &&
-    value !== null &&
-    value !== "" &&
-    value !== "UNKNOWN"
-  );
+  const result = {};
+
+  for (const horizon of HORIZONS) {
+    const stats =
+      createEmptyStats();
+
+    for (const index of indices) {
+      const outcome =
+        calculateOutcome(
+          snapshots,
+          index,
+          horizon
+        );
+
+      addOutcome(
+        stats,
+        outcome
+      );
+    }
+
+    result[horizon.key] =
+      finalizeStats(stats);
+  }
+
+  return result;
 }
 
-function combinationSignature(
-  state,
-  factors
+
+// ------------------------------------------------------------
+// Factor state
+// ------------------------------------------------------------
+
+function getFactorValue(
+  snapshot,
+  factor
+) {
+  if (factor === "rsi_bucket") {
+    return snapshot.rsi_bucket;
+  }
+
+  if (factor === "trend") {
+    return snapshot.trend;
+  }
+
+  if (factor === "volume_state") {
+    return snapshot.volume_state;
+  }
+
+  if (factor === "vwap") {
+    return snapshot.vwap;
+  }
+
+  if (factor === "or_state") {
+    return snapshot.or_state;
+  }
+
+  if (factor === "vpc_zone") {
+    return snapshot.vpc_zone;
+  }
+
+  if (factor === "session") {
+    return snapshot.session;
+  }
+
+  if (factor === "regime") {
+    return snapshot.regime;
+  }
+
+  return "UNKNOWN";
+}
+
+function buildLabel(
+  factors,
+  snapshot
 ) {
   return factors
     .map(
       factor =>
-        factor +
-        "=" +
-        state[factor]
+        `${FACTOR_LABELS[factor] || factor}=${getFactorValue(snapshot, factor)}`
     )
-    .join(" | ");
+    .join(" + ");
 }
 
-function createGroup(
-  label,
-  type,
-  factors
+function buildKey(
+  factors,
+  snapshot
 ) {
-  return {
-    label,
-    type,
-    factors,
-    samples: 0,
-
-    outcomes: {
-      "1m": createStats(),
-      "5m": createStats(),
-      "10m": createStats(),
-      "20m": createStats()
-    }
-  };
+  return factors
+    .map(
+      factor =>
+        `${factor}=${getFactorValue(snapshot, factor)}`
+    )
+    .join("|");
 }
 
-function addItemToGroup(
-  group,
-  item
+
+// ------------------------------------------------------------
+// Candidate discovery
+// ------------------------------------------------------------
+
+function discoverCandidates(
+  snapshots,
+  combinations,
+  minSamples
 ) {
-  group.samples++;
+  const candidates = [];
 
-  for (const horizon of HORIZONS) {
-    addOutcome(
-      group.outcomes[
-        horizon.key
-      ],
-      item.outcomes[
-        horizon.key
-      ]
-    );
-  }
-}
+  for (const factors of combinations) {
+    const groups =
+      new Map();
 
-function finalizeGroup(
-  group
-) {
-  return {
-    label:
-      group.label,
+    for (
+      let index = 0;
+      index < snapshots.length;
+      index++
+    ) {
+      const snapshot =
+        snapshots[index];
 
-    type:
-      group.type,
+      const values =
+        factors.map(
+          factor =>
+            getFactorValue(
+              snapshot,
+              factor
+            )
+        );
 
-    factors:
-      group.factors,
-
-    samples:
-      group.samples,
-
-    evidence_strength:
-      evidenceStrength(
-        group.samples
-      ),
-
-    outcomes: {
-      "1m":
-        finalizeStats(
-          group.outcomes["1m"]
-        ),
-
-      "5m":
-        finalizeStats(
-          group.outcomes["5m"]
-        ),
-
-      "10m":
-        finalizeStats(
-          group.outcomes["10m"]
-        ),
-
-      "20m":
-        finalizeStats(
-          group.outcomes["20m"]
+      if (
+        values.some(
+          value =>
+            !value ||
+            value === "UNKNOWN"
         )
+      ) {
+        continue;
+      }
+
+      const key =
+        values.join("|");
+
+      if (!groups.has(key)) {
+        groups.set(
+          key,
+          {
+            factors,
+            values,
+            indices: []
+          }
+        );
+      }
+
+      groups
+        .get(key)
+        .indices
+        .push(index);
     }
-  };
+
+    for (const group of groups.values()) {
+      if (
+        group.indices.length <
+        minSamples
+      ) {
+        continue;
+      }
+
+      const outcomes =
+        buildGroupOutcomes(
+          snapshots,
+          group.indices
+        );
+
+      const label =
+        factors
+          .map(
+            (factor, i) =>
+              `${FACTOR_LABELS[factor] || factor}=${group.values[i]}`
+          )
+          .join(" + ");
+
+      const candidate = {
+        type:
+          factors.length === 2
+            ? "TWO_FACTOR"
+            : "THREE_FACTOR",
+
+        factors,
+
+        label,
+
+        key:
+          group.values.join("|"),
+
+        samples:
+          group.indices.length,
+
+        outcomes
+      };
+
+      candidate.score =
+        calculateCandidateScore(
+          candidate
+        );
+
+      candidate.best_horizon =
+        selectBestHorizon(
+          candidate.outcomes
+        );
+
+      candidate.overall_classification =
+        classifyCandidate(
+          candidate
+        );
+
+      candidates.push(
+        candidate
+      );
+    }
+  }
+
+  return candidates;
 }
 
-/*
- * ---------------------------------------------------------
- * DISCOVERY SCORING
- * ---------------------------------------------------------
- *
- * This is NOT probability.
- *
- * It is simply a transparent ranking score
- * used to surface candidates for research.
- */
-function candidateScore(
-  group
+
+// ------------------------------------------------------------
+// Candidate score
+//
+// This is NOT probability.
+//
+// It is only a research-prioritization score.
+//
+// Higher:
+//   - directional consistency
+//   - movement magnitude
+//   - sample size
+//
+// Lower:
+//   - weak direction
+//   - small movement
+// ------------------------------------------------------------
+
+function calculateCandidateScore(
+  candidate
 ) {
-  const o5 =
-    group.outcomes["5m"];
+  const horizonKeys = [
+    "5m",
+    "10m",
+    "20m"
+  ];
 
-  const o10 =
-    group.outcomes["10m"];
+  let bestScore = 0;
 
-  const o20 =
-    group.outcomes["20m"];
+  for (const key of horizonKeys) {
+    const outcome =
+      candidate.outcomes[key];
 
-  if (
-    !o5 ||
-    !o10 ||
-    !o20
-  ) {
-    return 0;
-  }
+    if (!outcome) {
+      continue;
+    }
 
-  if (
-    o5.samples < 20 ||
-    o10.samples < 20 ||
-    o20.samples < 20
-  ) {
-    return 0;
-  }
+    if (
+      outcome.samples <
+      MIN_LOW_SAMPLES
+    ) {
+      continue;
+    }
 
-  const directional5 =
-    Math.abs(
-      o5.up_pct - 50
-    );
+    const directional =
+      Math.max(
+        outcome.up_pct,
+        outcome.down_pct
+      );
 
-  const directional10 =
-    Math.abs(
-      o10.up_pct - 50
-    );
-
-  const directional20 =
-    Math.abs(
-      o20.up_pct - 50
-    );
-
-  const moveStrength =
-    (
+    const deviation =
       Math.abs(
-        o5.avg_move_points || 0
-      ) +
+        directional - 50
+      );
+
+    const movement =
       Math.abs(
-        o10.avg_move_points || 0
-      ) +
-      Math.abs(
-        o20.avg_move_points || 0
-      )
-    ) / 3;
+        outcome.avg_move_points || 0
+      );
 
-  /*
-   * Sample size helps ranking but does not
-   * dominate the result.
-   */
-  const sampleFactor =
-    Math.min(
-      1,
-      group.samples / 100
-    );
-
-  const directionalScore =
-    (
-      directional5 * 0.25 +
-      directional10 * 0.35 +
-      directional20 * 0.40
-    );
-
-  const score =
-    (
-      directionalScore *
-      0.7
-    ) +
-    (
+    const sampleFactor =
       Math.min(
-        moveStrength,
-        50
-      ) *
-      0.3
-    );
+        outcome.samples / 100,
+        1
+      );
 
-  return Number(
-    (
-      score *
-      (0.5 + sampleFactor * 0.5)
-    ).toFixed(2)
+    const score =
+      (
+        deviation * 1.5 +
+        Math.min(movement, 50) * 0.5
+      ) *
+      sampleFactor;
+
+    bestScore =
+      Math.max(
+        bestScore,
+        score
+      );
+  }
+
+  return round(
+    bestScore,
+    2
   );
 }
 
-/*
- * ---------------------------------------------------------
- * REGIME AGGREGATION
- * ---------------------------------------------------------
- */
 
-function buildRegimeGroups(
-  items
+function selectBestHorizon(
+  outcomes
 ) {
-  const groups =
-    new Map();
+  let best = null;
 
-  for (const item of items) {
-    const regime =
-      item.regime;
+  for (const key of [
+    "5m",
+    "10m",
+    "20m"
+  ]) {
+    const outcome =
+      outcomes[key];
 
     if (
-      !groups.has(regime)
-    ) {
-      groups.set(
-        regime,
-        createGroup(
-          regime,
-          "REGIME",
-          ["regime"]
-        )
-      );
-    }
-
-    addItemToGroup(
-      groups.get(regime),
-      item
-    );
-  }
-
-  return [
-    ...groups.values()
-  ];
-}
-
-/*
- * ---------------------------------------------------------
- * TRANSITION DISCOVERY
- * ---------------------------------------------------------
- */
-
-function buildTransitions(
-  items
-) {
-  const groups =
-    new Map();
-
-  for (
-    let i = 1;
-    i < items.length;
-    i++
-  ) {
-    const previous =
-      items[i - 1];
-
-    const current =
-      items[i];
-
-    if (
-      previous.regime ===
-      current.regime
+      !outcome ||
+      outcome.samples <
+      MIN_LOW_SAMPLES
     ) {
       continue;
     }
 
-    const transition =
-      previous.regime +
-      " → " +
-      current.regime;
+    const directional =
+      Math.max(
+        outcome.up_pct,
+        outcome.down_pct
+      );
+
+    const movement =
+      Math.abs(
+        outcome.avg_move_points || 0
+      );
+
+    const strength =
+      Math.abs(
+        directional - 50
+      ) +
+      movement * 0.25;
 
     if (
-      !groups.has(
-        transition
-      )
+      !best ||
+      strength > best.strength
     ) {
-      groups.set(
-        transition,
-        createGroup(
-          transition,
-          "TRANSITION",
-          [
-            "previous_regime",
-            "current_regime"
-          ]
-        )
-      );
-    }
+      best = {
+        horizon: key,
+        direction:
+          outcome.up_pct >
+          outcome.down_pct
+            ? "UP"
+            : outcome.down_pct >
+              outcome.up_pct
+              ? "DOWN"
+              : "FLAT",
 
-    const group =
-      groups.get(
-        transition
-      );
+        directional_pct:
+          round(
+            directional,
+            2
+          ),
 
-    /*
-     * The outcome starts from the NEW regime.
-     */
-    addItemToGroup(
-      group,
-      current
-    );
-  }
+        avg_move_points:
+          outcome.avg_move_points,
 
-  return [
-    ...groups.values()
-  ];
-}
-
-/*
- * ---------------------------------------------------------
- * FACTOR DISCOVERY
- * ---------------------------------------------------------
- */
-
-function buildFactorGroups(
-  items,
-  factorSets,
-  type
-) {
-  const groups =
-    new Map();
-
-  for (const factors of factorSets) {
-    for (const item of items) {
-      const state =
-        item.state;
-
-      const valid =
-        factors.every(
-          factor =>
-            validStateValue(
-              state[factor]
-            )
-        );
-
-      if (!valid) {
-        continue;
-      }
-
-      const label =
-        combinationSignature(
-          state,
-          factors
-        );
-
-      const key =
-        type +
-        "::" +
-        label;
-
-      if (
-        !groups.has(key)
-      ) {
-        groups.set(
-          key,
-          createGroup(
-            label,
-            type,
-            factors
+        strength:
+          round(
+            strength,
+            2
           )
-        );
-      }
-
-      addItemToGroup(
-        groups.get(key),
-        item
-      );
+      };
     }
   }
 
-  return [
-    ...groups.values()
-  ];
+  return best;
 }
 
-/*
- * ---------------------------------------------------------
- * TRANSITION + FACTOR DISCOVERY
- * ---------------------------------------------------------
- *
- * Example:
- *
- * CHOP → MOMENTUM_UP
- * + RSI MID
- * + HIGH volume
- *
- * The factors are taken from the NEW
- * regime snapshot.
- */
-function buildTransitionFactorGroups(
-  items,
-  factorSets
+
+function classifyCandidate(
+  candidate
+) {
+  const meaningful =
+    ["5m", "10m", "20m"]
+      .map(
+        key =>
+          candidate.outcomes[key]
+      )
+      .filter(
+        outcome =>
+          outcome &&
+          outcome.samples >=
+            MIN_LOW_SAMPLES
+      );
+
+  if (!meaningful.length) {
+    return "INSUFFICIENT";
+  }
+
+  const edgeCount =
+    meaningful.filter(
+      outcome =>
+        outcome.classification ===
+        "EDGE"
+    ).length;
+
+  if (edgeCount >= 2) {
+    return "EDGE";
+  }
+
+  const watchCount =
+    meaningful.filter(
+      outcome =>
+        outcome.classification ===
+        "WATCH"
+    ).length;
+
+  if (
+    edgeCount >= 1 ||
+    watchCount >= 2
+  ) {
+    return "WATCH";
+  }
+
+  return "NO_EDGE";
+}
+
+
+// ------------------------------------------------------------
+// Regime discovery
+// ------------------------------------------------------------
+
+function discoverRegimes(
+  snapshots
+) {
+  const groups =
+    new Map();
+
+  snapshots.forEach(
+    (snapshot, index) => {
+      const regime =
+        snapshot.regime;
+
+      if (!groups.has(regime)) {
+        groups.set(
+          regime,
+          []
+        );
+      }
+
+      groups
+        .get(regime)
+        .push(index);
+    }
+  );
+
+  const result = [];
+
+  for (
+    const [regime, indices]
+    of groups.entries()
+  ) {
+    result.push({
+      regime,
+      samples: indices.length,
+      evidence_strength:
+        evidenceStrength(
+          indices.length
+        ),
+      outcomes:
+        buildGroupOutcomes(
+          snapshots,
+          indices
+        )
+    });
+  }
+
+  result.sort(
+    (a, b) =>
+      b.samples -
+      a.samples
+  );
+
+  return result;
+}
+
+
+// ------------------------------------------------------------
+// Regime transitions
+// ------------------------------------------------------------
+
+function discoverTransitions(
+  snapshots,
+  minSamples
 ) {
   const groups =
     new Map();
 
   for (
     let i = 1;
-    i < items.length;
+    i < snapshots.length;
     i++
   ) {
     const previous =
-      items[i - 1];
+      snapshots[i - 1];
 
     const current =
-      items[i];
+      snapshots[i];
 
     if (
       previous.regime ===
@@ -1019,180 +1370,397 @@ function buildTransitionFactorGroups(
       continue;
     }
 
-    const transition =
-      previous.regime +
-      " → " +
-      current.regime;
+    const key =
+      `${previous.regime} -> ${current.regime}`;
+
+    if (!groups.has(key)) {
+      groups.set(
+        key,
+        {
+          from:
+            previous.regime,
+
+          to:
+            current.regime,
+
+          indices: []
+        }
+      );
+    }
+
+    groups
+      .get(key)
+      .indices
+      .push(i);
+  }
+
+  const transitions = [];
+
+  for (
+    const group of groups.values()
+  ) {
+    const outcomes =
+      buildGroupOutcomes(
+        snapshots,
+        group.indices
+      );
+
+    transitions.push({
+      type: "REGIME_TRANSITION",
+
+      from: group.from,
+
+      to: group.to,
+
+      label:
+        `${group.from} -> ${group.to}`,
+
+      samples:
+        group.indices.length,
+
+      evidence_strength:
+        evidenceStrength(
+          group.indices.length
+        ),
+
+      qualified:
+        group.indices.length >=
+        minSamples,
+
+      outcomes
+    });
+  }
+
+  transitions.sort(
+    (a, b) =>
+      b.samples -
+      a.samples
+  );
+
+  return transitions;
+}
+
+
+// ------------------------------------------------------------
+// Transition + factor discovery
+//
+// Example:
+//
+// CHOP -> MOMENTUM_UP
+// + RSI=STRONG
+// + Volume=HIGH
+//
+// This helps identify what conditions accompany
+// a regime transition.
+//
+// It is intentionally limited to the selected
+// factor combinations.
+// ------------------------------------------------------------
+
+function discoverTransitionFactors(
+  snapshots,
+  minSamples
+) {
+  const groups =
+    new Map();
+
+  for (
+    let i = 1;
+    i < snapshots.length;
+    i++
+  ) {
+    const previous =
+      snapshots[i - 1];
+
+    const current =
+      snapshots[i];
+
+    if (
+      previous.regime ===
+      current.regime
+    ) {
+      continue;
+    }
 
     for (
-      const factors of factorSets
+      const factors
+      of TWO_FACTOR_PAIRS
     ) {
-      const state =
-        current.state;
-
-      const valid =
-        factors.every(
+      const values =
+        factors.map(
           factor =>
-            validStateValue(
-              state[factor]
+            getFactorValue(
+              current,
+              factor
             )
         );
 
-      if (!valid) {
+      if (
+        values.some(
+          value =>
+            !value ||
+            value === "UNKNOWN"
+        )
+      ) {
         continue;
       }
 
-      const factorLabel =
-        combinationSignature(
-          state,
-          factors
-        );
-
-      const label =
-        transition +
-        " | " +
-        factorLabel;
-
       const key =
-        "TRANSITION_FACTOR::" +
-        label;
+        [
+          previous.regime,
+          current.regime,
+          ...values
+        ].join("|");
 
-      if (
-        !groups.has(key)
-      ) {
+      if (!groups.has(key)) {
         groups.set(
           key,
-          createGroup(
-            label,
-            "TRANSITION_FACTOR",
-            [
-              "transition",
-              ...factors
-            ]
-          )
+          {
+            from:
+              previous.regime,
+
+            to:
+              current.regime,
+
+            factors,
+
+            values,
+
+            indices: []
+          }
         );
       }
 
-      addItemToGroup(
-        groups.get(key),
-        current
+      groups
+        .get(key)
+        .indices
+        .push(i);
+    }
+  }
+
+  const results = [];
+
+  for (
+    const group of groups.values()
+  ) {
+    if (
+      group.indices.length <
+      minSamples
+    ) {
+      continue;
+    }
+
+    const outcomes =
+      buildGroupOutcomes(
+        snapshots,
+        group.indices
+      );
+
+    const label =
+      `${group.from} -> ${group.to} + ` +
+      group.factors
+        .map(
+          (factor, i) =>
+            `${FACTOR_LABELS[factor] || factor}=${group.values[i]}`
+        )
+        .join(" + ");
+
+    results.push({
+      type:
+        "TRANSITION_FACTOR",
+
+      from:
+        group.from,
+
+      to:
+        group.to,
+
+      factors:
+        group.factors,
+
+      label,
+
+      samples:
+        group.indices.length,
+
+      evidence_strength:
+        evidenceStrength(
+          group.indices.length
+        ),
+
+      outcomes,
+
+      score:
+        calculateCandidateScore({
+          outcomes
+        }),
+
+      qualified: true
+    });
+  }
+
+  results.sort(
+    (a, b) =>
+      (b.score || 0) -
+      (a.score || 0)
+  );
+
+  return results;
+}
+
+
+// ------------------------------------------------------------
+// Current matching candidates
+// ------------------------------------------------------------
+
+function findCurrentMatches(
+  candidates,
+  currentSnapshot
+) {
+  if (!currentSnapshot) {
+    return [];
+  }
+
+  const matches = [];
+
+  for (const candidate of candidates) {
+    let matchesCurrent =
+      true;
+
+    for (
+      const factor
+      of candidate.factors
+    ) {
+      const expected =
+        candidate.label
+          .split(" + ")
+          .find(
+            item =>
+              item.startsWith(
+                `${FACTOR_LABELS[factor] || factor}=`
+              )
+          );
+
+      if (!expected) {
+        matchesCurrent = false;
+        break;
+      }
+
+      const expectedValue =
+        expected.substring(
+          expected.indexOf("=") + 1
+        );
+
+      const actualValue =
+        getFactorValue(
+          currentSnapshot,
+          factor
+        );
+
+      if (
+        expectedValue !==
+        actualValue
+      ) {
+        matchesCurrent = false;
+        break;
+      }
+    }
+
+    if (matchesCurrent) {
+      matches.push(
+        candidate
       );
     }
   }
 
-  return [
-    ...groups.values()
-  ];
+  matches.sort(
+    (a, b) =>
+      (b.score || 0) -
+      (a.score || 0)
+  );
+
+  return matches;
 }
 
-/*
- * ---------------------------------------------------------
- * RANKING / FILTERING
- * ---------------------------------------------------------
- */
 
-function rankCandidates(
-  groups,
-  minimumSamples
-) {
-  return groups
-    .map(group => ({
-      ...finalizeGroup(group),
-
-      research_score:
-        candidateScore(group)
-    }))
-    .filter(
-      candidate =>
-        candidate.samples >=
-        minimumSamples
-    )
-    .filter(
-      candidate =>
-        candidate.research_score > 0
-    )
-    .sort(
-      (a, b) =>
-        b.research_score -
-        a.research_score
-    );
-}
-
-/*
- * ---------------------------------------------------------
- * MAIN DISCOVERY ENGINE
- * ---------------------------------------------------------
- */
+// ------------------------------------------------------------
+// Main API calculation
+// ------------------------------------------------------------
 
 export async function calculateDiscovery(
   db,
   requestedLimit = 5000,
   minSamples = 20
 ) {
-  const limit =
+  const limit = Math.min(
     Math.max(
-      500,
-      Math.min(
-        Number(
-          requestedLimit
-        ) || 5000,
-        50000
-      )
-    );
+      Number(requestedLimit) || 5000,
+      100
+    ),
+    10000
+  );
 
   const minimumSamples =
     Math.max(
-      10,
-      Math.min(
-        Number(
-          minSamples
-        ) || 20,
-        1000
-      )
+      Number(minSamples) || 20,
+      10
     );
+
+  const query = `
+    SELECT
+      id,
+      received_at,
+      event_time,
+      ticker,
+      exchange,
+      timeframe,
+      event,
+      price,
+      raw_payload
+    FROM signals
+    WHERE event = 'MARKET_SNAPSHOT'
+      AND event_time IS NOT NULL
+    ORDER BY event_time DESC, id DESC
+    LIMIT ?
+  `;
 
   const result =
     await db
-      .prepare(`
-        SELECT
-          id,
-          received_at,
-          event_time,
-          ticker,
-          exchange,
-          timeframe,
-          event,
-          price,
-          raw_payload
-        FROM signals
-        WHERE event = 'MARKET_SNAPSHOT'
-          AND event_time IS NOT NULL
-        ORDER BY event_time DESC, id DESC
-        LIMIT ?
-      `)
+      .prepare(query)
       .bind(limit)
       .all();
 
   const rows =
-    (result.results || [])
-      .map(parseRow)
+    result.results || [];
+
+  const snapshots =
+    rows
+      .map(normalizeSnapshot)
       .filter(
-        row =>
-          row.event_time &&
+        snapshot =>
+          snapshot.event_time &&
           Number.isFinite(
-            row.price
+            snapshot.price
           )
       )
       .reverse();
 
-  if (!rows.length) {
+  const current =
+    snapshots.length
+      ? snapshots[
+          snapshots.length - 1
+        ]
+      : null;
+
+  if (!snapshots.length) {
     return {
       generated_at:
         new Date().toISOString(),
 
       dataset: {
         snapshots: 0,
-        valid_snapshots: 0
+        earliest: null,
+        latest: null
       },
 
       current_state: null,
@@ -1201,294 +1769,267 @@ export async function calculateDiscovery(
 
       regimes: [],
 
+      all_regimes: [],
+
       transitions: [],
 
-      factor_candidates: [],
+      qualified_transitions: [],
+
+      factor_candidates: {
+        two_factor: [],
+        three_factor: []
+      },
 
       transition_factor_candidates: [],
 
       top_candidates: [],
 
-      note:
-        "Not enough MARKET_SNAPSHOT data."
+      current_matching_candidates: [],
+
+      configuration: {
+        requested_limit: limit,
+        minimum_samples:
+          minimumSamples,
+
+        minimum_edge_samples:
+          MIN_EDGE_SAMPLES,
+
+        minimum_directional_edge_pct:
+          MIN_DIRECTIONAL_EDGE_PCT,
+
+        minimum_average_move_points:
+          MIN_AVG_MOVE_POINTS
+      },
+
+      methodology: {
+        purpose:
+          "Discover recurring market states, combinations and transitions before introducing trading signals.",
+
+        outcomes: [
+          "1m",
+          "5m",
+          "10m",
+          "20m"
+        ],
+
+        metrics: [
+          "UP %",
+          "DOWN %",
+          "Average move",
+          "Median move",
+          "MFE",
+          "MAE"
+        ],
+
+        classifications: [
+          "EDGE",
+          "WATCH",
+          "NO_EDGE",
+          "INSUFFICIENT"
+        ],
+
+        warning:
+          "Historical statistics are descriptive research evidence and do not guarantee future performance."
+      },
+
+      warnings: [
+        "No MARKET_SNAPSHOT data available."
+      ]
     };
   }
 
-  /*
-   * Build complete research records.
-   */
-  const items =
-    rows.map(row => ({
-      row,
+  // ----------------------------------------------------------
+  // Regimes
+  // ----------------------------------------------------------
 
-      state:
-        stateFor(row),
-
-      regime:
-        classifyRegime(row),
-
-      rsi_bucket:
-        rsiBucket(
-          num(
-            row.payload?.rsi
-          )
-        ),
-
-      outcomes:
-        outcomeFor(
-          row,
-          rows
-        )
-    }));
-
-  /*
-   * Regime groups.
-   */
-  const regimeGroups =
-    buildRegimeGroups(
-      items
+  const allRegimes =
+    discoverRegimes(
+      snapshots
     );
 
-  const regimes =
-    regimeGroups
-      .map(finalizeGroup)
-      .sort(
-        (a, b) =>
-          b.samples -
-          a.samples
-      );
-
-  /*
-   * Transition groups.
-   *
-   * We expose ALL transitions here so the
-   * research output can be inspected even
-   * when there are fewer than minimumSamples.
-   */
-  const transitionGroups =
-    buildTransitions(
-      items
-    );
-
-  const allTransitions =
-    transitionGroups
-      .map(finalizeGroup)
-      .sort(
-        (a, b) =>
-          b.samples -
-          a.samples
-      );
-
-  const transitions =
-    allTransitions.filter(
-      item =>
-        item.samples >=
+  // Keep the legacy "regimes" field.
+  // It contains regimes with at least minSamples.
+  const qualifiedRegimes =
+    allRegimes.filter(
+      regime =>
+        regime.samples >=
         minimumSamples
     );
 
-  /*
-   * Two-factor discovery.
-   */
-  const twoFactorGroups =
-    buildFactorGroups(
-      items,
+  // ----------------------------------------------------------
+  // Transitions
+  // ----------------------------------------------------------
+
+  const transitions =
+    discoverTransitions(
+      snapshots,
+      minimumSamples
+    );
+
+  const qualifiedTransitions =
+    transitions.filter(
+      transition =>
+        transition.qualified
+    );
+
+  // ----------------------------------------------------------
+  // Static factor candidates
+  // ----------------------------------------------------------
+
+  const twoFactor =
+    discoverCandidates(
+      snapshots,
       TWO_FACTOR_PAIRS,
-      "2_FACTOR"
-    );
-
-  const twoFactorCandidates =
-    rankCandidates(
-      twoFactorGroups,
       minimumSamples
     );
 
-  /*
-   * Three-factor discovery.
-   */
-  const threeFactorGroups =
-    buildFactorGroups(
-      items,
+  const threeFactor =
+    discoverCandidates(
+      snapshots,
       THREE_FACTOR_TRIPLES,
-      "3_FACTOR"
-    );
-
-  const threeFactorCandidates =
-    rankCandidates(
-      threeFactorGroups,
       minimumSamples
     );
 
-  /*
-   * Transition + factor discovery.
-   *
-   * We use the same selected 2-factor
-   * combinations rather than exploding
-   * the search space.
-   */
-  const transitionFactorGroups =
-    buildTransitionFactorGroups(
-      items,
-      TWO_FACTOR_PAIRS
-    );
+  // ----------------------------------------------------------
+  // Transition + factor candidates
+  // ----------------------------------------------------------
 
-  const transitionFactorCandidates =
-    rankCandidates(
-      transitionFactorGroups,
+  const transitionFactors =
+    discoverTransitionFactors(
+      snapshots,
       minimumSamples
     );
 
-  /*
-   * Combine candidates and keep the best
-   * research hypotheses.
-   */
+  // ----------------------------------------------------------
+  // Rank all static candidates
+  // ----------------------------------------------------------
+
   const allCandidates = [
-    ...twoFactorCandidates,
-    ...threeFactorCandidates,
-    ...transitionFactorCandidates
-  ]
-    .sort(
-      (a, b) =>
-        b.research_score -
-        a.research_score
-    )
-    .slice(
+    ...twoFactor,
+    ...threeFactor
+  ];
+
+  allCandidates.sort(
+    (a, b) =>
+      (b.score || 0) -
+      (a.score || 0)
+  );
+
+  const topCandidates =
+    allCandidates.slice(
       0,
-      100
+      MAX_TOP_CANDIDATES
     );
 
-  /*
-   * Current market state.
-   */
-  const latest =
-    items[
-      items.length - 1
-    ];
-
-  /*
-   * Candidate current state.
-   */
-  const currentState = {
-    event_time:
-      latest.row.event_time
-        .toISOString(),
-
-    price:
-      latest.row.price,
-
-    rsi:
-      num(
-        latest.row.payload?.rsi
-      ),
-
-    rsi_bucket:
-      latest.rsi_bucket,
-
-    trend:
-      latest.state.trend,
-
-    volume_state:
-      latest.state.volume_state,
-
-    volume_ratio:
-      num(
-        latest.row.payload
-          ?.volume_ratio
-      ),
-
-    vwap:
-      latest.state.vwap,
-
-    or_state:
-      latest.state.or_state,
-
-    vpc_zone:
-      latest.state.vpc_zone,
-
-    session:
-      latest.state.session,
-
-    regime:
-      latest.regime
-  };
-
-  /*
-   * Determine which discovered candidates
-   * match the current state.
-   *
-   * This is descriptive only.
-   */
   const currentMatches =
-    allCandidates
-      .filter(candidate => {
+    findCurrentMatches(
+      allCandidates,
+      current
+    );
 
-        if (
-          candidate.type ===
-          "2_FACTOR" ||
-          candidate.type ===
-          "3_FACTOR"
-        ) {
-          return candidate.factors.every(
-            factor => {
+  // ----------------------------------------------------------
+  // Current state
+  // ----------------------------------------------------------
 
-              if (
-                factor ===
-                "regime"
-              ) {
-                return (
-                  candidate.label.includes(
-                    "regime=" +
-                    latest.regime
-                  )
-                );
-              }
+  const currentState =
+    current
+      ? {
+          event_time:
+            current.event_time,
 
-              return candidate.label.includes(
-                factor +
-                "=" +
-                latest.state[factor]
-              );
-            }
-          );
+          price:
+            current.price,
+
+          rsi:
+            current.rsi,
+
+          rsi_bucket:
+            current.rsi_bucket,
+
+          trend:
+            current.trend,
+
+          volume_state:
+            current.volume_state,
+
+          volume_ratio:
+            current.volume_ratio,
+
+          vwap:
+            current.vwap,
+
+          vwap_distance:
+            current.vwap_distance,
+
+          or_state:
+            current.or_state,
+
+          or_high:
+            current.or_high,
+
+          or_low:
+            current.or_low,
+
+          vpc_zone:
+            current.vpc_zone,
+
+          vpc_mid:
+            current.vpc_mid,
+
+          adr_used_pct:
+            current.adr_used_pct,
+
+          vix:
+            current.vix,
+
+          session:
+            current.session,
+
+          atm_strike:
+            current.atm_strike
         }
+      : null;
 
-        return false;
-      })
-      .slice(
-        0,
-        20
-      );
+  // ----------------------------------------------------------
+  // Warnings
+  // ----------------------------------------------------------
 
-  /*
-   * Research warnings.
-   */
   const warnings = [];
 
-  if (
-    rows.length < 5000
-  ) {
+  if (snapshots.length < 5000) {
     warnings.push(
-      "Dataset contains fewer than 5000 snapshots. Discovery results are preliminary."
+      `Dataset contains only ${snapshots.length} snapshots. More history is required for robust statistical conclusions.`
     );
   }
 
-  if (
-    regimes.length < 4
-  ) {
+  if (qualifiedRegimes.length < 3) {
     warnings.push(
-      "Only a small number of distinct regimes have appeared in the collected data."
+      "Only a small number of regimes currently have enough samples for analysis."
     );
   }
 
-  if (
-    transitions.length === 0
-  ) {
+  if (!qualifiedTransitions.length) {
     warnings.push(
-      "No regime transitions currently meet the minimum sample threshold."
+      `No regime transitions currently meet the ${minimumSamples}-sample qualification threshold.`
+    );
+  }
+
+  if (!topCandidates.length) {
+    warnings.push(
+      `No factor combinations currently meet the ${minimumSamples}-sample threshold.`
     );
   }
 
   warnings.push(
-    "Candidate ranking is a research prioritization score, not a probability or trading signal."
+    "EDGE/WATCH classifications are research classifications, not trading signals."
+  );
+
+  warnings.push(
+    "Candidate scores are ranking metrics, not probabilities."
+  );
+
+  warnings.push(
+    "One trading session is not sufficient to establish a durable market edge."
   );
 
   warnings.push(
@@ -1501,97 +2042,154 @@ export async function calculateDiscovery(
 
     dataset: {
       snapshots:
-        rows.length,
-
-      valid_snapshots:
-        rows.length,
+        snapshots.length,
 
       earliest:
-        rows[0]
-          .event_time
-          .toISOString(),
+        snapshots[0]?.event_time ||
+        null,
 
       latest:
-        rows[
-          rows.length - 1
-        ]
-          .event_time
-          .toISOString()
+        snapshots[
+          snapshots.length - 1
+        ]?.event_time ||
+        null
     },
 
     current_state:
       currentState,
 
-    current_regime: {
-      regime:
-        latest.regime,
+    current_regime:
+      current
+        ? {
+            event_time:
+              current.event_time,
 
-      evidence:
-        regimes.find(
-          item =>
-            item.label ===
-            latest.regime
-        ) || null
-    },
+            price:
+              current.price,
 
-    regimes,
+            regime:
+              current.regime,
 
-    transitions: allTransitions,
+            rsi:
+              current.rsi,
+
+            rsi_bucket:
+              current.rsi_bucket,
+
+            trend:
+              current.trend,
+
+            volume_state:
+              current.volume_state,
+
+            volume_ratio:
+              current.volume_ratio,
+
+            vwap:
+              current.vwap,
+
+            vwap_distance:
+              current.vwap_distance,
+
+            or_state:
+              current.or_state,
+
+            vpc_zone:
+              current.vpc_zone,
+
+            session:
+              current.session
+          }
+        : null,
+
+    // Only regimes meeting minimum sample threshold.
+    regimes:
+      qualifiedRegimes,
+
+    // All regimes, including low-sample regimes.
+    all_regimes:
+      allRegimes,
+
+    transitions,
 
     qualified_transitions:
-      transitions,
+      qualifiedTransitions,
 
     factor_candidates: {
       two_factor:
-        twoFactorCandidates,
+        twoFactor,
 
       three_factor:
-        threeFactorCandidates
+        threeFactor
     },
 
     transition_factor_candidates:
-      transitionFactorCandidates,
+      transitionFactors,
 
     top_candidates:
-      allCandidates,
+      topCandidates,
 
     current_matching_candidates:
       currentMatches,
 
     configuration: {
+      requested_limit:
+        limit,
+
       minimum_samples:
         minimumSamples,
 
-      maximum_dataset:
-        limit,
+      minimum_low_samples:
+        MIN_LOW_SAMPLES,
 
-      two_factor_search_space:
-        TWO_FACTOR_PAIRS,
+      minimum_edge_samples:
+        MIN_EDGE_SAMPLES,
 
-      three_factor_search_space:
-        THREE_FACTOR_TRIPLES,
+      minimum_directional_edge_pct:
+        MIN_DIRECTIONAL_EDGE_PCT,
 
-      maximum_returned_candidates:
-        100
+      minimum_average_move_points:
+        MIN_AVG_MOVE_POINTS,
+
+      horizons: HORIZONS.map(
+        horizon => ({
+          key:
+            horizon.key,
+
+          minutes:
+            horizon.minutes,
+
+          tolerance_seconds:
+            horizon.toleranceMs /
+            1000
+        })
+      )
     },
 
     methodology: {
-      stage:
-        "Stage 4 — Market Regime & Setup Discovery",
-
       purpose:
-        "Discover recurring market regimes, regime transitions and historically interesting market-state combinations.",
+        "Discover recurring market regimes, factor combinations and regime transitions before introducing trading signals.",
 
       regime_types: [
         "MOMENTUM_UP",
         "MOMENTUM_DOWN",
         "MEAN_REVERSION_UP",
+        "MEAN_REVERSION_DOWN",
         "EXHAUSTION_UP",
-        "CHOP",
+        "EXHAUSTION_DOWN",
         "BULLISH_REGIME",
         "BEARISH_REGIME",
+        "CHOP",
         "NEUTRAL_REGIME"
       ],
+
+      factor_combinations: {
+        two_factor:
+          TWO_FACTOR_PAIRS,
+
+        three_factor:
+          THREE_FACTOR_TRIPLES
+      },
 
       outcomes: [
         "1m",
@@ -1600,23 +2198,61 @@ export async function calculateDiscovery(
         "20m"
       ],
 
-      transition_definition:
-        "A transition occurs when the classified regime changes between consecutive MARKET_SNAPSHOT observations.",
+      metrics: [
+        "UP %",
+        "DOWN %",
+        "FLAT %",
+        "Average move",
+        "Median move",
+        "Average MFE",
+        "Median MFE",
+        "Average MAE",
+        "Median MAE"
+      ],
 
-      transition_outcome_definition:
-        "Outcomes are measured from the first snapshot belonging to the new regime.",
+      classifications: [
+        "EDGE",
+        "WATCH",
+        "NO_EDGE",
+        "INSUFFICIENT"
+      ],
 
-      candidate_definition:
-        "Candidates are recurring 2-factor, 3-factor, or transition-plus-factor states with sufficient historical observations.",
+      evidence_thresholds: {
+        insufficient:
+          `< ${MIN_LOW_SAMPLES} samples`,
 
-      research_score:
-        "A transparent ranking metric combining directional deviation from 50%, average movement magnitude and sample-size support.",
+        low:
+          `${MIN_LOW_SAMPLES}-${MIN_MODERATE_SAMPLES - 1} samples`,
 
-      important_warning:
-        "Research score is NOT probability, confidence, expected return, or a trading recommendation.",
+        moderate:
+          `${MIN_MODERATE_SAMPLES}-${99} samples`,
 
-      validation_requirement:
-        "Any candidate must be tested on unseen data before being considered for trading."
+        strong:
+          "100+ samples"
+      },
+
+      edge_definition: {
+        minimum_samples:
+          MIN_EDGE_SAMPLES,
+
+        minimum_directional_percentage:
+          MIN_DIRECTIONAL_EDGE_PCT,
+
+        minimum_average_move_points:
+          MIN_AVG_MOVE_POINTS,
+
+        note:
+          "These thresholds are research filters only and do not imply profitability."
+      },
+
+      mfe_definition:
+        "Maximum favorable price excursion from entry to the selected horizon.",
+
+      mae_definition:
+        "Maximum adverse price excursion from entry to the selected horizon.",
+
+      warning:
+        "Historical statistics do not guarantee future performance."
     },
 
     warnings
