@@ -69,7 +69,7 @@ $('events').innerHTML=rows.map(r=>'<tr><td>'+t(r.event_time||r.received_at)+'</t
 }catch(e){$('status').innerHTML='<span class="dot"></span><span>OFFLINE</span>';$('status').style.color="var(--red)";console.error(e)}}
 refresh();setInterval(refresh,3000);
 </script></body></html>`;
-
+// Cloudflare deployment sync
 function biasFor(event){const e=String(event||"").toUpperCase();if(["BREAKOUT","MOMENTUM","LAUNCHPAD"].some(x=>e.includes(x)))return"BULLISH";if(["BREAKDOWN","EXHAUSTION"].some(x=>e.includes(x)))return"BEARISH";return"WATCH"}
 function num(v){if(v===undefined||v===null||v==="")return null;const n=Number(v);return Number.isFinite(n)?n:null}
 function parseTime(v){if(!v)return null;const d=new Date(v);return Number.isNaN(d.getTime())?null:d.toISOString()}
