@@ -5,7 +5,6 @@ import { getDecisionFromEvidence } from "./decision.js";
 import {
   calculatePaperPerformance
 } from "./paperPerformance.js";
-
 import {
   initPaperTradeDb,
   getActivePaperTrade,
@@ -14,23 +13,16 @@ import {
   processPaperTrade
 } from "./paperTrade.js";
 
-
 const DASHBOARD = `<!doctype html>
 <html lang="en">
-
 <head>
-
 <meta charset="utf-8">
-
 <meta
   name="viewport"
   content="width=device-width,initial-scale=1"
 >
-
 <title>SENSEX Signal Engine</title>
-
 <style>
-
 :root{
   --bg:#0b0e12;
   --panel:#11161c;
@@ -45,15 +37,8 @@ const DASHBOARD = `<!doctype html>
   --cyan:#62d7e8;
   --shadow:0 12px 35px rgba(0,0,0,.22)
 }
-
-*{
-  box-sizing:border-box
-}
-
-html{
-  background:var(--bg)
-}
-
+*{box-sizing:border-box}
+html{background:var(--bg)}
 body{
   margin:0;
   background:
@@ -73,7 +58,6 @@ body{
     sans-serif;
   letter-spacing:.01em
 }
-
 header{
   position:sticky;
   top:0;
@@ -82,7 +66,6 @@ header{
   backdrop-filter:blur(14px);
   border-bottom:1px solid var(--line)
 }
-
 .topbar{
   max-width:1500px;
   margin:auto;
@@ -92,13 +75,11 @@ header{
   justify-content:space-between;
   gap:20px
 }
-
 .brand{
   display:flex;
   align-items:center;
   gap:13px
 }
-
 .logo{
   width:36px;
   height:36px;
@@ -110,19 +91,16 @@ header{
   color:var(--accent);
   font-weight:800
 }
-
 .brand h1{
   margin:0;
   font-size:17px;
   letter-spacing:.08em
 }
-
 .brand p{
   margin:3px 0 0;
   color:var(--muted);
   font-size:11px
 }
-
 .status{
   display:flex;
   align-items:center;
@@ -131,7 +109,6 @@ header{
   font-size:12px;
   font-weight:700
 }
-
 .dot{
   width:8px;
   height:8px;
@@ -139,20 +116,17 @@ header{
   background:currentColor;
   box-shadow:0 0 12px currentColor
 }
-
 main{
   max-width:1500px;
   margin:auto;
   padding:25px 28px 50px
 }
-
 .eyebrow{
   color:var(--muted);
   font-size:11px;
   text-transform:uppercase;
   letter-spacing:.14em
 }
-
 .hero{
   display:flex;
   justify-content:space-between;
@@ -160,30 +134,25 @@ main{
   gap:20px;
   margin-bottom:20px
 }
-
 .hero h2{
   margin:6px 0 0;
   font-size:28px;
   letter-spacing:-.03em
 }
-
 .hero-right{
   text-align:right;
   color:var(--muted);
   font-size:12px
 }
-
 .hero-right strong{
   color:var(--text);
   font-size:14px
 }
-
 .cards{
   display:grid;
   grid-template-columns:1.45fr repeat(3,1fr);
   gap:13px
 }
-
 .card,
 .panel,
 .decision-panel,
@@ -198,12 +167,10 @@ main{
   border-radius:13px;
   box-shadow:var(--shadow)
 }
-
 .card{
   padding:17px 18px;
   min-height:112px
 }
-
 .card.primary{
   background:
     linear-gradient(
@@ -212,7 +179,6 @@ main{
       #10161d
     )
 }
-
 .card label{
   display:block;
   color:var(--muted);
@@ -220,31 +186,26 @@ main{
   text-transform:uppercase;
   letter-spacing:.14em
 }
-
 .big{
   font-size:31px;
   font-weight:800;
   letter-spacing:-.035em;
   margin-top:11px
 }
-
 .sub{
   margin-top:7px;
   color:var(--muted);
   font-size:11px
 }
-
 .metric{
   display:flex;
   justify-content:space-between;
   align-items:end;
   margin-top:11px
 }
-
 .metric strong{
   font-size:25px
 }
-
 .badge{
   display:inline-flex;
   align-items:center;
@@ -256,37 +217,16 @@ main{
   border:1px solid var(--line);
   background:#10151b
 }
-
-.bull{
-  color:var(--green)
-}
-
-.bear{
-  color:var(--red)
-}
-
-.neutral{
-  color:var(--amber)
-}
-
-.cyan{
-  color:var(--cyan)
-}
-
-.muted{
-  color:var(--muted)
-}
-
-
-/* --------------------------------------------------
-   DECISION
--------------------------------------------------- */
+.bull{color:var(--green)}
+.bear{color:var(--red)}
+.neutral{color:var(--amber)}
+.cyan{color:var(--cyan)}
+.muted{color:var(--muted)}
 
 .decision-panel{
   margin-top:16px;
   padding:20px
 }
-
 .decision-head{
   display:flex;
   justify-content:space-between;
@@ -294,26 +234,22 @@ main{
   gap:15px;
   margin-bottom:14px
 }
-
 .decision-title{
   font-size:13px;
   font-weight:750;
   text-transform:uppercase;
   letter-spacing:.12em
 }
-
 .decision-note{
   color:var(--muted);
   font-size:10px
 }
-
 .decision-body{
   display:grid;
   grid-template-columns:220px 1fr;
   gap:20px;
   align-items:center
 }
-
 .decision-main{
   min-height:105px;
   display:flex;
@@ -325,50 +261,33 @@ main{
   background:var(--panel2);
   border:1px solid #1c242d
 }
-
 .decision-label{
   color:var(--muted);
   font-size:9px;
   text-transform:uppercase;
   letter-spacing:.14em
 }
-
 .decision-value{
   margin-top:7px;
   font-size:28px;
   font-weight:850;
   letter-spacing:.02em
 }
-
-.decision-value.call{
-  color:var(--green)
-}
-
-.decision-value.put{
-  color:var(--red)
-}
-
-.decision-value.no-trade{
-  color:var(--amber)
-}
-
-.decision-value.waiting{
-  color:var(--muted)
-}
-
+.decision-value.call{color:var(--green)}
+.decision-value.put{color:var(--red)}
+.decision-value.no-trade{color:var(--amber)}
+.decision-value.waiting{color:var(--muted)}
 .decision-reason{
   color:var(--text);
   font-size:13px;
   line-height:1.5
 }
-
 .decision-meta{
   display:flex;
   gap:9px;
   margin-top:12px;
   flex-wrap:wrap
 }
-
 .decision-chip{
   background:#10151b;
   border:1px solid #222c36;
@@ -377,22 +296,15 @@ main{
   font-size:10px;
   color:var(--muted)
 }
-
 .decision-chip strong{
   color:var(--text);
   margin-left:4px
 }
 
-
-/* --------------------------------------------------
-   PAPER TRADE
--------------------------------------------------- */
-
 .paper-panel{
   margin-top:16px;
   padding:20px
 }
-
 .paper-head{
   display:flex;
   justify-content:space-between;
@@ -400,44 +312,37 @@ main{
   gap:15px;
   margin-bottom:14px
 }
-
 .paper-title{
   font-size:13px;
   font-weight:750;
   text-transform:uppercase;
   letter-spacing:.12em
 }
-
 .paper-note{
   color:var(--muted);
   font-size:10px
 }
-
 .paper-status{
   padding:18px;
   border-radius:10px;
   background:var(--panel2);
   border:1px solid #1c242d
 }
-
 .paper-empty{
   color:var(--muted);
   font-size:13px
 }
-
 .paper-grid{
   display:grid;
   grid-template-columns:repeat(6,1fr);
   gap:9px
 }
-
 .paper-item{
   background:var(--panel2);
   border:1px solid #1c242d;
   border-radius:9px;
   padding:12px
 }
-
 .paper-item span{
   display:block;
   color:var(--muted);
@@ -445,47 +350,22 @@ main{
   text-transform:uppercase;
   letter-spacing:.1em
 }
-
 .paper-item b{
   display:block;
   margin-top:7px;
   font-size:14px
 }
-
-.paper-call{
-  color:var(--green)
-}
-
-.paper-put{
-  color:var(--red)
-}
-
-.paper-win{
-  color:var(--green)
-}
-
-.paper-loss{
-  color:var(--red)
-}
-
-.paper-flat{
-  color:var(--amber)
-}
-
-.paper-hold{
-  color:var(--cyan)
-}
-
-
-/* --------------------------------------------------
-   STATE
--------------------------------------------------- */
+.paper-call{color:var(--green)}
+.paper-put{color:var(--red)}
+.paper-win{color:var(--green)}
+.paper-loss{color:var(--red)}
+.paper-flat{color:var(--amber)}
+.paper-hold{color:var(--cyan)}
 
 .panel{
   margin-top:16px;
   padding:18px
 }
-
 .panel-head{
   display:flex;
   align-items:center;
@@ -493,30 +373,25 @@ main{
   gap:12px;
   margin-bottom:14px
 }
-
 .panel-title{
   font-size:14px;
   font-weight:750
 }
-
 .panel-note{
   font-size:11px;
   color:var(--muted)
 }
-
 .state-grid{
   display:grid;
   grid-template-columns:repeat(6,1fr);
   gap:9px
 }
-
 .state{
   background:var(--panel2);
   border:1px solid #1c242d;
   border-radius:9px;
   padding:12px
 }
-
 .state span{
   display:block;
   color:var(--muted);
@@ -524,24 +399,17 @@ main{
   text-transform:uppercase;
   letter-spacing:.1em
 }
-
 .state b{
   display:block;
   margin-top:7px;
   font-size:13px
 }
-
 .state small{
   display:block;
   margin-top:4px;
   color:#596572;
   font-size:10px
 }
-
-
-/* --------------------------------------------------
-   TABLES
--------------------------------------------------- */
 
 .section-title{
   margin:24px 0 10px;
@@ -550,20 +418,17 @@ main{
   text-transform:uppercase;
   letter-spacing:.15em
 }
-
 .tablewrap{
   overflow:auto;
   border:1px solid var(--line);
   border-radius:10px
 }
-
 table{
   width:100%;
   border-collapse:collapse;
   min-width:1220px;
   background:#0e1318
 }
-
 th,
 td{
   text-align:left;
@@ -572,7 +437,6 @@ td{
   font-size:11px;
   white-space:nowrap
 }
-
 th{
   position:sticky;
   top:0;
@@ -583,15 +447,12 @@ th{
   letter-spacing:.11em;
   z-index:1
 }
-
 tr:last-child td{
   border-bottom:0
 }
-
 tbody tr:hover{
   background:#121920
 }
-
 .pill{
   display:inline-flex;
   padding:4px 7px;
@@ -602,31 +463,22 @@ tbody tr:hover{
   background:#141a21;
   border:1px solid #222c36
 }
-
 .pill.green{
   color:var(--green);
   border-color:rgba(66,211,146,.22)
 }
-
 .pill.red{
   color:var(--red);
   border-color:rgba(255,101,115,.22)
 }
-
 .pill.amber{
   color:var(--amber);
   border-color:rgba(244,201,93,.22)
 }
-
 .pill.blue{
   color:var(--accent);
   border-color:rgba(90,169,255,.22)
 }
-
-
-/* --------------------------------------------------
-   EVIDENCE
--------------------------------------------------- */
 
 .evidence-summary{
   display:grid;
@@ -634,14 +486,12 @@ tbody tr:hover{
   gap:9px;
   margin-bottom:14px
 }
-
 .evidence-card{
   background:var(--panel2);
   border:1px solid #1c242d;
   border-radius:9px;
   padding:13px
 }
-
 .evidence-card span{
   display:block;
   color:var(--muted);
@@ -649,39 +499,26 @@ tbody tr:hover{
   text-transform:uppercase;
   letter-spacing:.1em
 }
-
 .evidence-card b{
   display:block;
   margin-top:7px;
   font-size:15px
 }
-
 .evidence-card small{
   display:block;
   margin-top:5px;
   color:#596572;
   font-size:10px
 }
-
-.evidence-good{
-  color:var(--green)
-}
-
-.evidence-bad{
-  color:var(--red)
-}
-
-.evidence-neutral{
-  color:var(--amber)
-}
-
+.evidence-good{color:var(--green)}
+.evidence-bad{color:var(--red)}
+.evidence-neutral{color:var(--amber)}
 .evidence-table{
   width:100%;
   border-collapse:collapse;
   min-width:900px;
   background:#0e1318
 }
-
 .evidence-table th,
 .evidence-table td{
   text-align:left;
@@ -690,7 +527,6 @@ tbody tr:hover{
   font-size:11px;
   white-space:nowrap
 }
-
 .evidence-table th{
   background:#121820;
   color:#7f8b99;
@@ -698,23 +534,12 @@ tbody tr:hover{
   text-transform:uppercase;
   letter-spacing:.1em
 }
-
 .evidence-table tr:last-child td{
   border-bottom:0
 }
-
-.evidence-table .positive{
-  color:var(--green)
-}
-
-.evidence-table .negative{
-  color:var(--red)
-}
-
-.evidence-table .neutral{
-  color:var(--amber)
-}
-
+.evidence-table .positive{color:var(--green)}
+.evidence-table .negative{color:var(--red)}
+.evidence-table .neutral{color:var(--amber)}
 .evidence-warning{
   padding:13px;
   border:1px solid rgba(244,201,93,.22);
@@ -725,16 +550,10 @@ tbody tr:hover{
   margin-bottom:14px
 }
 
-
-/* --------------------------------------------------
-   PAPER PERFORMANCE
--------------------------------------------------- */
-
 .performance-panel{
   margin-top:16px;
   padding:20px
 }
-
 .performance-head{
   display:flex;
   justify-content:space-between;
@@ -742,32 +561,27 @@ tbody tr:hover{
   gap:15px;
   margin-bottom:14px
 }
-
 .performance-title{
   font-size:13px;
   font-weight:750;
   text-transform:uppercase;
   letter-spacing:.12em
 }
-
 .performance-note{
   color:var(--muted);
   font-size:10px
 }
-
 .performance-grid{
   display:grid;
   grid-template-columns:repeat(6,1fr);
   gap:9px
 }
-
 .performance-item{
   background:var(--panel2);
   border:1px solid #1c242d;
   border-radius:9px;
   padding:13px
 }
-
 .performance-item span{
   display:block;
   color:var(--muted);
@@ -775,67 +589,50 @@ tbody tr:hover{
   text-transform:uppercase;
   letter-spacing:.1em
 }
-
 .performance-item b{
   display:block;
   margin-top:7px;
   font-size:18px
 }
-
 .performance-item small{
   display:block;
   margin-top:5px;
   color:#596572;
   font-size:10px
 }
-
-.performance-positive{
-  color:var(--green)
-}
-
-.performance-negative{
-  color:var(--red)
-}
-
-.performance-neutral{
-  color:var(--amber)
-}
-
+.performance-positive{color:var(--green)}
+.performance-negative{color:var(--red)}
+.performance-neutral{color:var(--amber)}
 .performance-direction{
   margin-top:14px;
   display:grid;
   grid-template-columns:1fr 1fr;
   gap:9px
 }
-
 .performance-direction-card{
   background:var(--panel2);
   border:1px solid #1c242d;
   border-radius:9px;
   padding:13px
 }
-
 .performance-direction-card h4{
   margin:0;
   font-size:11px;
   text-transform:uppercase;
   letter-spacing:.1em
 }
-
 .performance-direction-card .direction-grid{
   display:grid;
   grid-template-columns:repeat(3,1fr);
   gap:9px;
   margin-top:10px
 }
-
 .performance-direction-card .direction-stat{
   background:#10151b;
   border:1px solid #222c36;
   border-radius:7px;
   padding:9px
 }
-
 .performance-direction-card .direction-stat span{
   display:block;
   color:var(--muted);
@@ -843,321 +640,217 @@ tbody tr:hover{
   text-transform:uppercase;
   letter-spacing:.08em
 }
-
 .performance-direction-card .direction-stat b{
   display:block;
   margin-top:5px;
   font-size:13px
 }
 
-
-/* --------------------------------------------------
-   RESPONSIVE
--------------------------------------------------- */
-
 @media(max-width:1150px){
-
   .evidence-summary{
     grid-template-columns:repeat(3,1fr)
   }
-
   .cards{
     grid-template-columns:repeat(2,1fr)
   }
-
   .state-grid{
     grid-template-columns:repeat(3,1fr)
   }
-
   .decision-body{
     grid-template-columns:1fr
   }
-
   .paper-grid{
     grid-template-columns:repeat(3,1fr)
   }
-
   .performance-grid{
     grid-template-columns:repeat(3,1fr)
   }
 }
-
 @media(max-width:700px){
-
   .evidence-summary{
     grid-template-columns:1fr 1fr
   }
-
   .topbar,
   main{
     padding-left:14px;
     padding-right:14px
   }
-
   .hero{
     align-items:flex-start;
     flex-direction:column
   }
-
   .hero-right{
     text-align:left
   }
-
   .cards{
     grid-template-columns:1fr
   }
-
   .state-grid{
     grid-template-columns:repeat(2,1fr)
   }
-
   .big{
     font-size:27px
   }
-
   .decision-body{
     grid-template-columns:1fr
   }
-
   .paper-grid{
     grid-template-columns:1fr 1fr
   }
-
   .performance-grid{
     grid-template-columns:1fr 1fr
   }
-
   .performance-direction{
     grid-template-columns:1fr
   }
-
   .performance-direction-card .direction-grid{
     grid-template-columns:repeat(3,1fr)
   }
 }
-
 .empty{
   text-align:center;
   padding:35px;
   color:var(--muted);
   font-size:12px
 }
-
 .footer{
   text-align:center;
   color:#4f5a66;
   font-size:10px;
   margin-top:22px
 }
-
 </style>
-
 </head>
-
-
 <body>
-
-
 <header>
-
 <div class="topbar">
-
 <div class="brand">
-
 <div class="logo">S</div>
-
 <div>
-
 <h1>SENSEX SIGNAL ENGINE</h1>
-
 <p>
 Live market-state intelligence · 1-minute snapshots
 </p>
-
 </div>
-
 </div>
-
 <div id="status" class="status">
-
 <span class="dot"></span>
-
 <span>CONNECTING</span>
-
 </div>
-
 </div>
-
 </header>
-
 
 <main>
 
-
 <section class="hero">
-
 <div>
-
 <div class="eyebrow">
 Market overview
 </div>
-
 <h2>
 SENSEX <span class="muted">/ BSE</span>
 </h2>
-
 </div>
-
 <div class="hero-right">
-
 <div>
 Last snapshot
 </div>
-
 <strong id="updated">—</strong>
-
 <div id="age">—</div>
-
 </div>
-
 </section>
-
 
 <section class="cards">
 
-
 <div class="card primary">
-
 <label>
 Last price
 </label>
-
 <div id="price" class="big">
 —
 </div>
-
 <div class="sub">
 1-minute market snapshot
 </div>
-
 </div>
 
-
 <div class="card">
-
 <label>
 RSI (14)
 </label>
-
 <div class="metric">
-
 <strong id="rsi">
 —
 </strong>
-
 <span id="rsiBadge" class="badge">
 —
 </span>
-
 </div>
-
 <div id="rsiHint" class="sub">
 Momentum
 </div>
-
 </div>
 
-
 <div class="card">
-
 <label>
 Trend
 </label>
-
 <div class="metric">
-
 <strong id="trend">
 —
 </strong>
-
 <span id="trendBadge" class="badge">
 —
 </span>
-
 </div>
-
 <div class="sub">
 VPC mid + price structure
 </div>
-
 </div>
 
-
 <div class="card">
-
 <label>
 Volume
 </label>
-
 <div class="metric">
-
 <strong id="volumeState">
 —
 </strong>
-
 <span id="volumeRatio" class="badge">
 —
 </span>
-
 </div>
-
 <div class="sub">
 Relative to 20-period average
 </div>
-
 </div>
 
-
 </section>
-
-
-<!-- =====================================================
-     CURRENT DECISION
-===================================================== -->
 
 <section class="decision-panel">
 
 <div class="decision-head">
-
 <div class="decision-title">
 Current Decision
 </div>
-
 <div class="decision-note">
 Historical evidence driven · no forced trade
 </div>
-
 </div>
-
 
 <div class="decision-body">
 
-
 <div class="decision-main">
-
 <div class="decision-label">
 Signal
 </div>
-
 <div
   id="decisionValue"
   class="decision-value waiting"
 >
 WAITING
 </div>
-
 </div>
-
 
 <div>
 
@@ -1167,7 +860,6 @@ WAITING
 >
 Waiting for decision engine...
 </div>
-
 
 <div class="decision-meta">
 
@@ -1202,96 +894,61 @@ Required
 </div>
 
 </div>
-
 </div>
-
 </div>
-
 </section>
-
-
-<!-- =====================================================
-     PAPER TRADING
-===================================================== -->
 
 <section class="paper-panel">
 
 <div class="paper-head">
-
 <div class="paper-title">
 Paper Trading
 </div>
-
 <div class="paper-note">
 SENSEX points · simulated only
 </div>
-
 </div>
 
 <div id="paperTradeContent">
-
 <div class="paper-status">
-
 <div class="paper-empty">
 Loading paper-trade state...
 </div>
-
 </div>
-
 </div>
 
 </section>
-
-
-<!-- =====================================================
-     PAPER PERFORMANCE
-===================================================== -->
 
 <section class="performance-panel">
 
 <div class="performance-head">
-
 <div class="performance-title">
 Paper Performance
 </div>
-
 <div class="performance-note">
 Forward performance · simulated only
 </div>
-
 </div>
 
 <div id="paperPerformanceContent">
-
 <div class="paper-status">
-
 <div class="paper-empty">
 Loading paper-performance statistics...
 </div>
-
 </div>
-
 </div>
 
 </section>
 
-
-<!-- =====================================================
-     CURRENT MARKET STATE
-===================================================== -->
-
 <section class="panel">
 
 <div class="panel-head">
-
 <div class="panel-title">
 Current market state
 </div>
-
 <div class="panel-note">
 Values are sourced directly from the TradingView snapshot
 </div>
-
 </div>
 
 <div
@@ -1301,52 +958,34 @@ Values are sourced directly from the TradingView snapshot
 
 </section>
 
-
-<!-- =====================================================
-     HISTORICAL EVIDENCE
-===================================================== -->
-
 <section class="panel">
 
 <div class="panel-head">
-
 <div class="panel-title">
 Historical Evidence
 </div>
-
 <div class="panel-note">
 Historical SENSEX outcomes · minimum 20 samples for dashboard evidence
 </div>
-
 </div>
 
 <div id="evidenceContent">
-
 <div class="empty">
 Loading historical evidence...
 </div>
-
 </div>
 
 </section>
 
-
-<!-- =====================================================
-     SNAPSHOT HISTORY
-===================================================== -->
-
 <section class="panel">
 
 <div class="panel-head">
-
 <div class="panel-title">
 Snapshot history
 </div>
-
 <div class="panel-note">
 Latest 50 · auto-refresh 3 sec
 </div>
-
 </div>
 
 <div class="tablewrap">
@@ -1354,9 +993,7 @@ Latest 50 · auto-refresh 3 sec
 <table>
 
 <thead>
-
 <tr>
-
 <th>Time</th>
 <th>Price</th>
 <th>RSI</th>
@@ -1371,9 +1008,7 @@ Latest 50 · auto-refresh 3 sec
 <th>VIX</th>
 <th>Session</th>
 <th>ATM</th>
-
 </tr>
-
 </thead>
 
 <tbody id="history"></tbody>
@@ -1384,79 +1019,22 @@ Latest 50 · auto-refresh 3 sec
 
 </section>
 
-
-<!-- =====================================================
-     SIGNAL EVENTS
-===================================================== -->
-
-<section class="panel">
-
-<div class="panel-head">
-
-<div class="panel-title">
-Signal event log
-</div>
-
-<div class="panel-note">
-Breakouts, retests and other TradingView events
-</div>
-
-</div>
-
-<div class="tablewrap">
-
-<table>
-
-<thead>
-
-<tr>
-
-<th>Time</th>
-<th>Event</th>
-<th>Price</th>
-<th>High</th>
-<th>Low</th>
-<th>Volume</th>
-<th>Bias</th>
-
-</tr>
-
-</thead>
-
-<tbody id="events"></tbody>
-
-</table>
-
-</div>
-
-</section>
-
-
 <div class="footer">
-
 SENSEX Signal Engine · Data is informational and not a trading recommendation
-
 </div>
-
 
 </main>
 
-
 <script>
-
 
 const $=id=>
   document.getElementById(id);
 
-
 const n=v=>
-
   v==null ||
   v==="" ||
   Number.isNaN(Number(v))
-
     ?"—"
-
     :Number(v).toLocaleString(
       "en-IN",
       {
@@ -1464,9 +1042,7 @@ const n=v=>
       }
     );
 
-
 const t=v=>
-
   v
     ?new Date(v).toLocaleTimeString(
       "en-IN",
@@ -1476,27 +1052,19 @@ const t=v=>
     )
     :"—";
 
-
 const txt=v=>
-
   v==null ||
   v===""
-
     ?"—"
-
     :String(v);
-
 
 const cls=v=>
   String(v||"").toUpperCase();
 
-
 const pill=(v,type="amber")=>
-
   '<span class="pill '+type+'">'+
   txt(v)+
   '</span>';
-
 
 function tone(v){
 
@@ -1504,43 +1072,31 @@ function tone(v){
     String(v||"").toUpperCase();
 
   return
-
     x==="BULL" ||
     x==="HIGH" ||
     x==="ABOVE" ||
     x==="BULLISH"
-
       ?"green"
-
       :
-
     x==="BEAR" ||
     x==="LOW" ||
     x==="BELOW" ||
     x==="BEARISH"
-
       ?"red"
-
       :
-
     x==="NEUTRAL" ||
     x==="WATCH" ||
     x==="AT"
-
       ?"amber"
-
       :
-
       "blue";
 }
-
 
 function rsiTone(v){
 
   const x=Number(v);
 
   return Number.isFinite(x)
-
     ?(
         x>=60
           ?"green"
@@ -1550,10 +1106,8 @@ function rsiTone(v){
           :
           "amber"
       )
-
     :"amber";
 }
-
 
 function detail(
   label,
@@ -1563,19 +1117,15 @@ function detail(
 ){
 
   return
-
     '<div class="state">'+
-
       '<span>'+
         label+
       '</span>'+
-
       '<b class="'+
         (type||tone(value))+
       '">' +
         txt(value)+
       '</b>'+
-
       (
         sub
           ?'<small>'+
@@ -1583,10 +1133,8 @@ function detail(
            '</small>'
           :""
       )+
-
     '</div>';
 }
-
 
 function renderState(s,p){
 
@@ -1674,7 +1222,6 @@ function renderState(s,p){
   ].join("");
 }
 
-
 function evidencePct(v){
 
   if(
@@ -1685,7 +1232,6 @@ function evidencePct(v){
 
   return Number(v).toFixed(1)+"%";
 }
-
 
 function evidenceMove(v){
 
@@ -1704,7 +1250,6 @@ function evidenceMove(v){
   )+
   x.toFixed(2);
 }
-
 
 function evidenceClass(v){
 
@@ -1725,7 +1270,6 @@ function evidenceClass(v){
   return "neutral";
 }
 
-
 function evidenceStrength(samples){
 
   if(samples>=100)
@@ -1742,11 +1286,6 @@ function evidenceStrength(samples){
 
   return "INSUFFICIENT";
 }
-
-
-/* --------------------------------------------------
-   DECISION RENDER
--------------------------------------------------- */
 
 function renderDecision(data){
 
@@ -1849,11 +1388,6 @@ function renderDecision(data){
       " pts";
 }
 
-
-/* --------------------------------------------------
-   PAPER TRADE RENDER
--------------------------------------------------- */
-
 function renderPaperTrade(data){
 
   const container=
@@ -1924,7 +1458,6 @@ function renderPaperTrade(data){
       "paper-flat";
 
   container.innerHTML=
-
     '<div class="paper-grid">'+
 
       '<div class="paper-item">'+
@@ -1982,12 +1515,6 @@ function renderPaperTrade(data){
     '</div>';
 }
 
-
-
-/* --------------------------------------------------
-   PAPER PERFORMANCE RENDER
--------------------------------------------------- */
-
 function performanceNumber(v, suffix=""){
 
   if(
@@ -2004,7 +1531,6 @@ function performanceNumber(v, suffix=""){
   )+
   suffix;
 }
-
 
 function performancePnl(v){
 
@@ -2025,7 +1551,6 @@ function performancePnl(v){
   " pts";
 }
 
-
 function performancePnlClass(v){
 
   if(
@@ -2045,7 +1570,6 @@ function performancePnlClass(v){
   return "performance-neutral";
 }
 
-
 function renderPaperPerformance(data){
 
   const container=
@@ -2062,7 +1586,6 @@ function renderPaperPerformance(data){
 
     return;
   }
-
 
   const total=
     Number(
@@ -2091,13 +1614,10 @@ function renderPaperPerformance(data){
         data.profit_factor
       ).toFixed(2);
 
-
   let html="";
-
 
   html+=
     '<div class="performance-grid">'+
-
 
     '<div class="performance-item">'+
       '<span>Closed trades</span>'+
@@ -2111,7 +1631,6 @@ function renderPaperPerformance(data){
         ' open'+
       '</small>'+
     '</div>'+
-
 
     '<div class="performance-item">'+
       '<span>Win rate</span>'+
@@ -2137,7 +1656,6 @@ function renderPaperPerformance(data){
       '</small>'+
     '</div>'+
 
-
     '<div class="performance-item">'+
       '<span>Total P&L</span>'+
       '<b class="'+
@@ -2147,7 +1665,6 @@ function renderPaperPerformance(data){
       '</b>'+
       '<small>Cumulative SENSEX points</small>'+
     '</div>'+
-
 
     '<div class="performance-item">'+
       '<span>Expectancy</span>'+
@@ -2159,7 +1676,6 @@ function renderPaperPerformance(data){
       '<small>Average points per closed trade</small>'+
     '</div>'+
 
-
     '<div class="performance-item">'+
       '<span>Profit factor</span>'+
       '<b>'+
@@ -2167,7 +1683,6 @@ function renderPaperPerformance(data){
       '</b>'+
       '<small>Gross profit ÷ gross loss</small>'+
     '</div>'+
-
 
     '<div class="performance-item">'+
       '<span>Max drawdown</span>'+
@@ -2186,7 +1701,6 @@ function renderPaperPerformance(data){
       '</small>'+
     '</div>'+
 
-
     '<div class="performance-item">'+
       '<span>Average win</span>'+
       '<b class="performance-positive">'+
@@ -2201,7 +1715,6 @@ function renderPaperPerformance(data){
         ' winning trades'+
       '</small>'+
     '</div>'+
-
 
     '<div class="performance-item">'+
       '<span>Average loss</span>'+
@@ -2218,7 +1731,6 @@ function renderPaperPerformance(data){
       '</small>'+
     '</div>'+
 
-
     '<div class="performance-item">'+
       '<span>Best streak</span>'+
       '<b class="performance-positive">'+
@@ -2228,7 +1740,6 @@ function renderPaperPerformance(data){
       '</b>'+
       '<small>Consecutive wins</small>'+
     '</div>'+
-
 
     '<div class="performance-item">'+
       '<span>Worst streak</span>'+
@@ -2240,19 +1751,15 @@ function renderPaperPerformance(data){
       '<small>Consecutive losses</small>'+
     '</div>'+
 
-
     '</div>';
-
 
   html+=
     '<div class="performance-direction">';
-
 
   const directions=[
     ["CALL",data.directions?.CALL],
     ["PUT",data.directions?.PUT]
   ];
-
 
   for(
     const [direction,stats]
@@ -2261,7 +1768,6 @@ function renderPaperPerformance(data){
 
     const d=
       stats||{};
-
 
     html+=
       '<div class="performance-direction-card">'+
@@ -2315,10 +1821,8 @@ function renderPaperPerformance(data){
       '</div>';
   }
 
-
   html+=
     '</div>';
-
 
   if(total<10){
 
@@ -2354,15 +1858,9 @@ function renderPaperPerformance(data){
       '</div>';
   }
 
-
   container.innerHTML=
     html;
 }
-
-
-/* --------------------------------------------------
-   HISTORICAL EVIDENCE
--------------------------------------------------- */
 
 function renderEvidence(data){
 
@@ -2461,10 +1959,8 @@ function renderEvidence(data){
   html+=
     "</div>";
 
-
   html+=
     '<div class="evidence-summary">';
-
 
   for(
     const horizon of [
@@ -2532,7 +2028,6 @@ function renderEvidence(data){
 
   html+="</div>";
 
-
   html+=
     '<div class="section-title">'+
     'Factor Evidence'+
@@ -2577,10 +2072,8 @@ function renderEvidence(data){
   html+=
     "</tr></thead><tbody>";
 
-
   const factors=
     data.factors||[];
-
 
   for(
     const factorGroup of factors
@@ -2698,21 +2191,17 @@ function renderEvidence(data){
 
   html+="</tbody></table></div>";
 
-
   html+=
     '<div class="section-title">'+
     'Historical Combinations'+
     '</div>';
 
-
   const combinations=
     data.combinations||[];
-
 
   const usableCombinations=
     combinations.filter(
       group=>{
-
         return [
           "1m",
           "5m",
@@ -2728,7 +2217,6 @@ function renderEvidence(data){
         );
       }
     );
-
 
   if(
     !usableCombinations.length
@@ -2779,7 +2267,6 @@ function renderEvidence(data){
     html+=
       "</tr></thead><tbody>";
 
-
     for(
       const group of
       usableCombinations
@@ -2793,7 +2280,6 @@ function renderEvidence(data){
 
       const o20=
         group.outcomes["20m"];
-
 
       html+="<tr>";
 
@@ -2887,11 +2373,6 @@ function renderEvidence(data){
     html;
 }
 
-
-/* --------------------------------------------------
-   MAIN REFRESH
--------------------------------------------------- */
-
 async function refresh(){
 
   try{
@@ -2912,11 +2393,6 @@ async function refresh(){
     const d=
       await response.json();
 
-
-    /* -----------------------------------------------
-       Historical evidence
-    ------------------------------------------------ */
-
     const evidenceResponse=
       await fetch(
         "/api/evidence?limit=5000&minSamples=20",
@@ -2934,11 +2410,6 @@ async function refresh(){
         evidence
       );
     }
-
-
-    /* -----------------------------------------------
-       Decision
-    ------------------------------------------------ */
 
     const decisionResponse=
       await fetch(
@@ -2962,11 +2433,6 @@ async function refresh(){
       renderDecision(null);
     }
 
-
-    /* -----------------------------------------------
-       Paper trade
-    ------------------------------------------------ */
-
     const paperResponse=
       await fetch(
         "/api/paper-trade",
@@ -2988,11 +2454,6 @@ async function refresh(){
 
       renderPaperTrade(null);
     }
-
-
-    /* -----------------------------------------------
-       Paper performance
-    ------------------------------------------------ */
 
     const performanceResponse=
       await fetch(
@@ -3016,11 +2477,6 @@ async function refresh(){
       renderPaperPerformance(null);
     }
 
-
-    /* -----------------------------------------------
-       Signals
-    ------------------------------------------------ */
-
     const rows=
       d.signals||[];
 
@@ -3034,7 +2490,6 @@ async function refresh(){
     const s=
       snapshots[0]||
       rows[0];
-
 
     $("status").innerHTML=
       '<span class="dot"></span>'+
@@ -3051,7 +2506,6 @@ async function refresh(){
         ?"var(--green)"
         :"var(--amber)";
 
-
     if(!s){
 
       $("stateGrid").innerHTML=
@@ -3061,11 +2515,9 @@ async function refresh(){
         "</div>";
 
       $("history").innerHTML="";
-      $("events").innerHTML="";
 
       return;
     }
-
 
     const p=
       s.raw_payload||{};
@@ -3088,7 +2540,6 @@ async function refresh(){
           Number(previous.price)
         :null;
 
-
     $("price").textContent=
       n(s.price);
 
@@ -3102,7 +2553,6 @@ async function refresh(){
             :""
         )+
         n(delta);
-
 
     $("rsi").textContent=
       n(p.rsi);
@@ -3135,7 +2585,6 @@ async function refresh(){
         :
         "Neutral momentum";
 
-
     $("trend").textContent=
       txt(p.trend);
 
@@ -3154,7 +2603,6 @@ async function refresh(){
         ?"bear"
         :
         "neutral";
-
 
     $("volumeState").textContent=
       txt(p.volume_state);
@@ -3184,13 +2632,11 @@ async function refresh(){
           "blue"
       );
 
-
     $("updated").textContent=
       t(
         s.event_time||
         s.received_at
       );
-
 
     const ageSec=
       Math.max(
@@ -3206,7 +2652,6 @@ async function refresh(){
         )
       );
 
-
     $("age").textContent=
       ageSec<90
         ?"Live · "+
@@ -3217,18 +2662,15 @@ async function refresh(){
         ageSec+
         "s ago";
 
-
     $("age").style.color=
       ageSec<90
         ?"var(--green)"
         :"var(--red)";
 
-
     renderState(
       s,
       p
     );
-
 
     $("history").innerHTML=
       snapshots.map(
@@ -3324,63 +2766,6 @@ async function refresh(){
       "</td>"+
       "</tr>";
 
-
-    $("events").innerHTML=
-      rows.map(
-        r=>
-
-          "<tr>"+
-
-          "<td>"+
-            t(
-              r.event_time||
-              r.received_at
-            )+
-          "</td>"+
-
-          "<td>"+
-            pill(
-              r.event,
-              tone(r.event)
-            )+
-          "</td>"+
-
-          "<td>"+
-            n(r.price)+
-          "</td>"+
-
-          "<td>"+
-            n(r.high)+
-          "</td>"+
-
-          "<td>"+
-            n(r.low)+
-          "</td>"+
-
-          "<td>"+
-            n(r.volume)+
-          "</td>"+
-
-          "<td>"+
-            pill(
-              r.bias,
-              tone(r.bias)
-            )+
-          "</td>"+
-
-          "</tr>"
-
-      ).join("")
-
-      ||
-
-      '<tr>'+
-      '<td colspan="7" class="empty">'+
-      "No events yet"+
-      "</td>"+
-      "</tr>";
-
-
   }catch(e){
 
     $("status").innerHTML=
@@ -3394,7 +2779,6 @@ async function refresh(){
   }
 }
 
-
 refresh();
 
 setInterval(
@@ -3403,14 +2787,8 @@ setInterval(
 );
 
 </script>
-
 </body>
 </html>`;
-
-
-/* =========================================================
-   SERVER HELPERS
-========================================================= */
 
 function biasFor(event){
 
@@ -3442,7 +2820,6 @@ function biasFor(event){
   return "WATCH";
 }
 
-
 function num(v){
 
   if(
@@ -3460,7 +2837,6 @@ function num(v){
     :null;
 }
 
-
 function parseTime(v){
 
   if(!v)
@@ -3475,7 +2851,6 @@ function parseTime(v){
     ?null
     :d.toISOString();
 }
-
 
 async function initDb(db){
 
@@ -3497,7 +2872,6 @@ async function initDb(db){
     )
   `).run();
 }
-
 
 async function getSignals(
   db,
@@ -3531,25 +2905,16 @@ async function getSignals(
     result.results||[]
   ).map(
     r=>({
-
       ...r,
-
       bias:
         biasFor(r.event),
-
       raw_payload:
         JSON.parse(
           r.raw_payload
         )
-
     })
   );
 }
-
-
-/* =========================================================
-   DECISION NORMALIZATION
-========================================================= */
 
 function normalizeDecisionEvidence(
   currentEvidence
@@ -3567,15 +2932,7 @@ function normalizeDecisionEvidence(
       ?.outcomes?.["10m"];
 
   return {
-
     ...currentEvidence,
-
-    /*
-     * Both horizons are required by the
-     * decision engine.
-     *
-     * Therefore use the smaller sample count.
-     */
     samples:
       Math.min(
         Number(five?.samples||0),
@@ -3583,11 +2940,6 @@ function normalizeDecisionEvidence(
       )
   };
 }
-
-
-/* =========================================================
-   GET CURRENT DECISION
-========================================================= */
 
 async function calculateCurrentDecision(
   db,
@@ -3612,7 +2964,6 @@ async function calculateCurrentDecision(
     );
 
   return {
-
     current_state:
       evidence.current_state||
       null,
@@ -3623,11 +2974,6 @@ async function calculateCurrentDecision(
       normalizedEvidence
   };
 }
-
-
-/* =========================================================
-   PAPER TRADE PROCESSING
-========================================================= */
 
 async function processLatestPaperTrade(
   db,
@@ -3640,13 +2986,6 @@ async function processLatestPaperTrade(
       db
     );
 
-
-  /*
-   * Existing trade gets priority.
-   *
-   * Evaluate the new snapshot against
-   * the open trade.
-   */
   if(activeTrade){
 
     return evaluatePaperTrade(
@@ -3656,13 +2995,6 @@ async function processLatestPaperTrade(
     );
   }
 
-
-  /*
-   * No active trade.
-   *
-   * Allow the decision engine to open
-   * a new paper trade if it qualifies.
-   */
   return processPaperTrade(
     db,
     {
@@ -3674,11 +3006,6 @@ async function processLatestPaperTrade(
     }
   );
 }
-
-
-/* =========================================================
-   MAIN WORKER
-========================================================= */
 
 export default{
 
@@ -3695,7 +3022,6 @@ export default{
     const method=
       request.method.toUpperCase();
 
-
     if(!env.DB){
 
       return Response.json(
@@ -3709,7 +3035,6 @@ export default{
       );
     }
 
-
     await initDb(
       env.DB
     );
@@ -3717,11 +3042,6 @@ export default{
     await initPaperTradeDb(
       env.DB
     );
-
-
-    /* -----------------------------------------------------
-       Dashboard
-    ----------------------------------------------------- */
 
     if(
       url.pathname==="/" &&
@@ -3739,32 +3059,18 @@ export default{
       );
     }
 
-
-    /* -----------------------------------------------------
-       Health
-    ----------------------------------------------------- */
-
     if(
       url.pathname==="/api/health" &&
       method==="GET"
     ){
 
       return Response.json({
-
         status:"ok",
-
         service:
           "sensex-signal-engine",
-
         stage:6
-
       });
     }
-
-
-    /* -----------------------------------------------------
-       Outcomes
-    ----------------------------------------------------- */
 
     if(
       url.pathname==="/api/outcomes" &&
@@ -3794,11 +3100,6 @@ export default{
         }
       );
     }
-
-
-    /* -----------------------------------------------------
-       Evidence
-    ----------------------------------------------------- */
 
     if(
       url.pathname==="/api/evidence" &&
@@ -3837,11 +3138,6 @@ export default{
       );
     }
 
-
-    /* -----------------------------------------------------
-       Discovery
-    ----------------------------------------------------- */
-
     if(
       url.pathname==="/api/discovery" &&
       method==="GET"
@@ -3878,11 +3174,6 @@ export default{
         }
       );
     }
-
-
-    /* -----------------------------------------------------
-       Decision
-    ----------------------------------------------------- */
 
     if(
       url.pathname==="/api/decision" &&
@@ -3922,11 +3213,6 @@ export default{
       );
     }
 
-
-    /* -----------------------------------------------------
-       Paper Trade API
-    ----------------------------------------------------- */
-
     if(
       url.pathname==="/api/paper-trade" &&
       method==="GET"
@@ -3945,12 +3231,6 @@ export default{
 
       let unrealizedPnlPoints = null;
 
-
-      /*
-       * If a trade is active, calculate its
-       * current unrealized SENSEX-point P&L
-       * using the latest market snapshot.
-       */
       if(activeTrade){
 
         const latestRows =
@@ -4000,10 +3280,6 @@ export default{
         }
       }
 
-
-      /*
-       * Calculate basic paper-trading statistics.
-       */
       const closedTrades =
         trades.filter(
           trade =>
@@ -4043,14 +3319,11 @@ export default{
 
       const winRate =
         closedTrades.length > 0
-
           ? (
               wins.length /
               closedTrades.length
             ) * 100
-
           : 0;
-
 
       return Response.json(
         {
@@ -4093,11 +3366,6 @@ export default{
       );
     }
 
-
-    /* -----------------------------------------------------
-       Paper Trade Performance API
-    ----------------------------------------------------- */
-
     if(
       url.pathname === "/api/paper-performance" &&
       method === "GET"
@@ -4127,11 +3395,6 @@ export default{
       );
     }
 
-
-    /* -----------------------------------------------------
-       Latest
-    ----------------------------------------------------- */
-
     if(
       url.pathname==="/api/latest" &&
       method==="GET"
@@ -4149,11 +3412,6 @@ export default{
           null
       });
     }
-
-
-    /* -----------------------------------------------------
-       Signals
-    ----------------------------------------------------- */
 
     if(
       url.pathname==="/api/signals" &&
@@ -4191,11 +3449,6 @@ export default{
       });
     }
 
-
-    /* -----------------------------------------------------
-       TradingView Webhook
-    ----------------------------------------------------- */
-
     if(
       url.pathname===
       "/webhook/tradingview" &&
@@ -4203,7 +3456,6 @@ export default{
     ){
 
       let payload;
-
 
       try{
 
@@ -4223,7 +3475,6 @@ export default{
         );
       }
 
-
       const ticker=
         String(
           payload.ticker||
@@ -4236,7 +3487,6 @@ export default{
           payload.event||
           ""
         );
-
 
       if(
         !ticker||
@@ -4253,11 +3503,6 @@ export default{
           }
         );
       }
-
-
-      /* -----------------------------------------------
-         Save TradingView snapshot first
-      ------------------------------------------------ */
 
       const result=
         await env.DB.prepare(`
@@ -4343,17 +3588,8 @@ export default{
         )
         .run();
 
-
-      /* -----------------------------------------------
-         Paper-trade processing
-      ------------------------------------------------ */
-
       let paperTradeResult=null;
 
-      /*
-       * Only MARKET_SNAPSHOT events should drive
-       * the paper-trade lifecycle.
-       */
       if(
         event===
         "MARKET_SNAPSHOT"
@@ -4366,7 +3602,6 @@ export default{
               env.DB,
               5000
             );
-
 
           const insertedSignal={
 
@@ -4399,7 +3634,6 @@ export default{
 
           };
 
-
           paperTradeResult=
             await processLatestPaperTrade(
               env.DB,
@@ -4409,13 +3643,6 @@ export default{
 
         }catch(error){
 
-          /*
-           * Paper-trade errors must NOT reject
-           * the TradingView webhook.
-           *
-           * The market snapshot has already been
-           * safely stored in D1.
-           */
           paperTradeResult={
             action:
               "ERROR",
@@ -4428,7 +3655,6 @@ export default{
           };
         }
       }
-
 
       return Response.json({
 
@@ -4447,11 +3673,6 @@ export default{
 
       });
     }
-
-
-    /* -----------------------------------------------------
-       Not found
-    ----------------------------------------------------- */
 
     return Response.json(
       {
