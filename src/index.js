@@ -3342,11 +3342,174 @@ export default{
       );
     }
 
-
     /* -----------------------------------------------------
        Paper Trade API
     ----------------------------------------------------- */
-
+    
+    if(
+      url.pathname==="/api/paper-trade" &&
+      method==="GET"
+    ){
+    
+      const activeTrade =
+        await getActivePaperTrade(
+          env.DB
+        );
+    
+      const trades =
+        await getPaperTrades(
+          env.DB,
+          20
+        );
+    
+      let unrealizedPnlPoints = null;
+    
+      /*
+       * If a trade is active, calculate its
+       * current unrealized SENSEX-point P&L
+       * using the latest market snapshot.
+       */
+      if(activeTrade){
+    
+        const latestRows =
+          await getSignals(
+            env.DB,
+            50
+          );
+    
+        const latestSnapshot =
+          latestRows.find(
+            row =>
+              row.event ===
+              "MARKET_SNAPSHOT"
+          );
+    
+        if(latestSnapshot){
+    
+          const currentPrice =
+            Number(
+              latestSnapshot.price
+            );
+    
+          const entryPrice =
+            Number(
+              activeTrade.entry_price
+            );
+    
+          if(
+            Number.isFinite(
+              currentPrice
+            ) &&
+            Number.isFinite(
+              entryPrice
+            )
+          ){
+    
+            unrealizedPnlPoints =
+              activeTrade.direction ===
+              "CALL"
+    
+                ? currentPrice -
+                  entryPrice
+    
+                : entryPrice -
+                  currentPrice;
+          }
+        }
+      }
+    
+    
+      /*
+       * Calculate basic paper-trading statistics.
+       */
+      const closedTrades =
+        trades.filter(
+          trade =>
+            String(
+              trade.status||""
+            ).toUpperCase() ===
+            "CLOSED"
+        );
+    
+      const wins =
+        closedTrades.filter(
+          trade =>
+            String(
+              trade.result||""
+            ).toUpperCase() ===
+            "WIN"
+        );
+    
+      const losses =
+        closedTrades.filter(
+          trade =>
+            String(
+              trade.result||""
+            ).toUpperCase() ===
+            "LOSS"
+        );
+    
+      const totalPnl =
+        closedTrades.reduce(
+          (sum,trade) =>
+            sum +
+            Number(
+              trade.pnl_points||0
+            ),
+          0
+        );
+    
+      const winRate =
+        closedTrades.length > 0
+    
+          ? (
+              wins.length /
+              closedTrades.length
+            ) * 100
+    
+          : 0;
+    
+    
+      return Response.json(
+        {
+          active_trade:
+            activeTrade||null,
+    
+          unrealized_pnl_points:
+            unrealizedPnlPoints,
+    
+          recent_trades:
+            trades,
+    
+          statistics:{
+            closed_trades:
+              closedTrades.length,
+    
+            wins:
+              wins.length,
+    
+            losses:
+              losses.length,
+    
+            win_rate:
+              Number(
+                winRate.toFixed(2)
+              ),
+    
+            total_pnl_points:
+              Number(
+                totalPnl.toFixed(2)
+              )
+          }
+        },
+        {
+          headers:{
+            "cache-control":
+              "no-store"
+          }
+        }
+      );
+    }
     /* -----------------------------------------------------
        Latest
     ----------------------------------------------------- */
