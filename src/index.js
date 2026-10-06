@@ -332,6 +332,180 @@ main{
   color:var(--muted);
   font-size:13px
 }
+/* --------------------------------------------------
+   PAPER TRADE HISTORY
+-------------------------------------------------- */
+
+.paper-history{
+  margin-top:14px;
+  border:1px solid #1c242d;
+  border-radius:10px;
+  background:var(--panel2);
+  overflow:hidden
+}
+
+.paper-history summary{
+  cursor:pointer;
+  list-style:none;
+  padding:13px 15px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  color:var(--text);
+  font-size:11px;
+  font-weight:750;
+  text-transform:uppercase;
+  letter-spacing:.08em
+}
+
+.paper-history summary::-webkit-details-marker{
+  display:none
+}
+
+.paper-history summary::after{
+  content:"▾";
+  color:var(--muted);
+  font-size:13px
+}
+
+.paper-history[open] summary::after{
+  content:"▴"
+}
+
+.paper-history-count{
+  color:var(--muted);
+  font-size:10px;
+  font-weight:600;
+  text-transform:none;
+  letter-spacing:0
+}
+
+.paper-history-list{
+  border-top:1px solid #1c242d
+}
+
+.paper-trade-row{
+  border-bottom:1px solid #1c242d
+}
+
+.paper-trade-row:last-child{
+  border-bottom:none
+}
+
+.paper-trade-row summary{
+  padding:12px 15px;
+  text-transform:none;
+  letter-spacing:0;
+  font-weight:650
+}
+
+.paper-trade-summary{
+  display:grid;
+  grid-template-columns:55px 70px 70px 1fr auto;
+  align-items:center;
+  gap:10px;
+  width:100%
+}
+
+.paper-trade-id{
+  color:var(--muted);
+  font-size:10px
+}
+
+.paper-trade-direction{
+  font-weight:800;
+  font-size:11px
+}
+
+.paper-call{
+  color:var(--green)
+}
+
+.paper-put{
+  color:var(--red)
+}
+
+.paper-win{
+  color:var(--green)
+}
+
+.paper-loss{
+  color:var(--red)
+}
+
+.paper-flat{
+  color:var(--amber)
+}
+
+.paper-open{
+  color:var(--cyan)
+}
+
+.paper-trade-pnl{
+  font-weight:800;
+  text-align:right
+}
+
+.paper-trade-detail{
+  padding:14px 15px;
+  border-top:1px solid #1c242d;
+  background:#0d1217
+}
+
+.paper-trade-grid{
+  display:grid;
+  grid-template-columns:repeat(4,1fr);
+  gap:10px
+}
+
+.paper-trade-field{
+  display:flex;
+  flex-direction:column;
+  gap:4px
+}
+
+.paper-trade-field span{
+  color:var(--muted);
+  font-size:9px;
+  text-transform:uppercase;
+  letter-spacing:.1em
+}
+
+.paper-trade-field b{
+  color:var(--text);
+  font-size:11px
+}
+
+.paper-trade-reason{
+  margin-top:12px;
+  padding:10px;
+  border-radius:7px;
+  background:#10151b;
+  border:1px solid #202a34;
+  color:var(--muted);
+  font-size:10px;
+  line-height:1.5
+}
+
+.paper-trade-reason strong{
+  color:var(--text)
+}
+
+@media(max-width:700px){
+
+  .paper-trade-summary{
+    grid-template-columns:45px 60px 65px 1fr;
+  }
+
+  .paper-trade-pnl{
+    grid-column:4;
+  }
+
+  .paper-trade-grid{
+    grid-template-columns:repeat(2,1fr)
+  }
+}
 .paper-grid{
   display:grid;
   grid-template-columns:repeat(6,1fr);
@@ -1390,129 +1564,490 @@ function renderDecision(data){
 
 function renderPaperTrade(data){
 
-  const container=
+  const container =
     $("paperTradeContent");
+
 
   if(!data){
 
-    container.innerHTML=
+    container.innerHTML =
       '<div class="paper-status">'+
-      '<div class="paper-empty">'+
-      'Paper-trade data unavailable.'+
-      '</div>'+
+        '<div class="paper-empty">'+
+          'Paper-trade data unavailable.'+
+        '</div>'+
       '</div>';
 
     return;
   }
 
-  const active=
+
+  const active =
     data.active_trade;
 
-  if(!active){
 
-    container.innerHTML=
+  const trades =
+    Array.isArray(
+      data.recent_trades
+    )
+      ?data.recent_trades
+      :[];
+
+
+  /*
+   * --------------------------------------------------
+   * ACTIVE TRADE
+   * --------------------------------------------------
+   */
+
+  let activeHtml = "";
+
+
+  if(active){
+
+    const direction =
+      String(
+        active.direction||""
+      ).toUpperCase();
+
+
+    const directionClass =
+      direction==="CALL"
+        ?"paper-call"
+        :"paper-put";
+
+
+    const unrealized =
+      Number(
+        data.unrealized_pnl_points
+      );
+
+
+    const pnlText =
+      Number.isFinite(unrealized)
+        ?(
+          unrealized>=0
+            ?"+"
+            :""
+        )+
+        unrealized.toFixed(2)+
+        " pts"
+        :"—";
+
+
+    const pnlClass =
+      unrealized>0
+        ?"paper-win"
+        :
+      unrealized<0
+        ?"paper-loss"
+        :
+        "paper-flat";
+
+
+    activeHtml =
+
       '<div class="paper-status">'+
-      '<div class="paper-empty">'+
-      'NO ACTIVE TRADE</div>'+
-      '<div class="sub">'+
-      'Waiting for a qualified CALL or PUT decision.'+
-      '</div>'+
+
+        '<div class="paper-grid">'+
+
+          '<div class="paper-item">'+
+            '<span>Direction</span>'+
+            '<b class="'+
+              directionClass+
+            '">'+
+              txt(direction)+
+            '</b>'+
+          '</div>'+
+
+          '<div class="paper-item">'+
+            '<span>Entry</span>'+
+            '<b>'+
+              n(active.entry_price)+
+            '</b>'+
+          '</div>'+
+
+          '<div class="paper-item">'+
+            '<span>Stop loss</span>'+
+            '<b class="paper-loss">'+
+              n(active.stop_loss)+
+            '</b>'+
+          '</div>'+
+
+          '<div class="paper-item">'+
+            '<span>Target</span>'+
+            '<b class="paper-win">'+
+              n(active.target)+
+            '</b>'+
+          '</div>'+
+
+          '<div class="paper-item">'+
+            '<span>Current P&L</span>'+
+            '<b class="'+
+              pnlClass+
+            '">'+
+              pnlText+
+            '</b>'+
+          '</div>'+
+
+          '<div class="paper-item">'+
+            '<span>Samples</span>'+
+            '<b>'+
+              txt(active.evidence_samples)+
+            '</b>'+
+          '</div>'+
+
+        '</div>'+
+
+        '<div class="sub">'+
+          'Opened: '+
+          t(active.entry_time)+
+          ' · Paper trade only'+
+        '</div>'+
+
       '</div>';
 
-    return;
+  }else{
+
+    activeHtml =
+
+      '<div class="paper-status">'+
+        '<div class="paper-empty">'+
+          'NO ACTIVE TRADE'+
+        '</div>'+
+        '<div class="sub">'+
+          'Waiting for a qualified CALL or PUT decision.'+
+        '</div>'+
+      '</div>';
   }
 
-  const direction=
-    String(
-      active.direction||""
-    ).toUpperCase();
 
-  const directionClass=
-    direction==="CALL"
-      ?"paper-call"
-      :"paper-put";
+  /*
+   * --------------------------------------------------
+   * TRADE HISTORY
+   * --------------------------------------------------
+   */
 
-  const unrealized=
-    Number(
-      data.unrealized_pnl_points
-    );
+  let historyHtml = "";
 
-  const pnlText=
-    Number.isFinite(unrealized)
-      ?(
-        unrealized>=0
-          ?"+"
-          :""
-       )+
-       unrealized.toFixed(2)+
-       " pts"
-      :"—";
 
-  const pnlClass=
-    unrealized>0
-      ?"paper-win"
-      :
-    unrealized<0
-      ?"paper-loss"
-      :
-      "paper-flat";
+  if(trades.length === 0){
 
-  container.innerHTML=
-    '<div class="paper-grid">'+
+    historyHtml =
+      '<div class="paper-history">'+
 
-      '<div class="paper-item">'+
-        '<span>Direction</span>'+
-        '<b class="'+
-          directionClass+
-        '">'+
-          txt(direction)+
-        '</b>'+
-      '</div>'+
+        '<details>'+
 
-      '<div class="paper-item">'+
-        '<span>Entry</span>'+
-        '<b>'+
-          n(active.entry_price)+
-        '</b>'+
-      '</div>'+
+          '<summary>'+
+            '<span>'+
+              'Trade History '+
+              '<span class="paper-history-count">'+
+                '(0 trades)'+
+              '</span>'+
+            '</span>'+
+          '</summary>'+
 
-      '<div class="paper-item">'+
-        '<span>Stop loss</span>'+
-        '<b class="paper-loss">'+
-          n(active.stop_loss)+
-        '</b>'+
-      '</div>'+
+          '<div class="paper-trade-detail">'+
+            '<div class="paper-empty">'+
+              'No paper trades yet.'+
+            '</div>'+
+          '</div>'+
 
-      '<div class="paper-item">'+
-        '<span>Target</span>'+
-        '<b class="paper-win">'+
-          n(active.target)+
-        '</b>'+
-      '</div>'+
+        '</details>'+
 
-      '<div class="paper-item">'+
-        '<span>Current P&L</span>'+
-        '<b class="'+
-          pnlClass+
-        '">'+
-          pnlText+
-        '</b>'+
-      '</div>'+
+      '</div>';
 
-      '<div class="paper-item">'+
-        '<span>Samples</span>'+
-        '<b>'+
-          txt(active.evidence_samples)+
-        '</b>'+
-      '</div>'+
+  }else{
 
-    '</div>'+
 
-    '<div class="sub">'+
-      'Opened: '+
-      t(active.entry_time)+
-      ' · Paper trade only'+
-    '</div>';
+    const tradeRows =
+      trades.map(
+        trade => {
+
+          const id =
+            trade.id;
+
+
+          const status =
+            String(
+              trade.status||""
+            ).toUpperCase();
+
+
+          const direction =
+            String(
+              trade.direction||""
+            ).toUpperCase();
+
+
+          const result =
+            String(
+              trade.result||""
+            ).toUpperCase();
+
+
+          const directionClass =
+            direction==="CALL"
+              ?"paper-call"
+              :"paper-put";
+
+
+          let resultClass =
+            "paper-open";
+
+
+          if(result==="WIN")
+            resultClass="paper-win";
+
+          if(result==="LOSS")
+            resultClass="paper-loss";
+
+          if(result==="FLAT")
+            resultClass="paper-flat";
+
+
+          let resultText =
+            status==="OPEN"
+              ?"OPEN"
+              :result||"—";
+
+
+          let pnlText =
+            "—";
+
+
+          if(
+            trade.pnl_points !== null &&
+            trade.pnl_points !== undefined &&
+            Number.isFinite(
+              Number(
+                trade.pnl_points
+              )
+            )
+          ){
+
+            const pnl =
+              Number(
+                trade.pnl_points
+              );
+
+            pnlText =
+              (
+                pnl>=0
+                  ?"+"
+                  :""
+              )+
+              pnl.toFixed(2)+
+              " pts";
+          }
+
+
+          const entry =
+            n(
+              trade.entry_price
+            );
+
+
+          const exit =
+            trade.exit_price !== null &&
+            trade.exit_price !== undefined
+              ?n(trade.exit_price)
+              :"OPEN";
+
+
+          const exitReason =
+            txt(
+              trade.exit_reason
+            );
+
+
+          const decisionReason =
+            txt(
+              trade.decision_reason
+            );
+
+
+          const samples =
+            txt(
+              trade.evidence_samples
+            );
+
+
+          return (
+
+            '<details class="paper-trade-row">'+
+
+              '<summary>'+
+
+                '<div class="paper-trade-summary">'+
+
+                  '<span class="paper-trade-id">'+
+                    '#'+
+                    txt(id)+
+                  '</span>'+
+
+                  '<span class="paper-trade-direction '+directionClass+'">'+
+                    txt(direction)+
+                  '</span>'+
+
+                  '<span class="'+
+                    resultClass+
+                  '">'+
+                    resultText+
+                  '</span>'+
+
+                  '<span>'+
+                    entry+
+                    ' → '+
+                    exit+
+                  '</span>'+
+
+                  '<span class="paper-trade-pnl '+resultClass+'">'+
+                    pnlText+
+                  '</span>'+
+
+                '</div>'+
+
+              '</summary>'+
+
+              '<div class="paper-trade-detail">'+
+
+                '<div class="paper-trade-grid">'+
+
+                  '<div class="paper-trade-field">'+
+                    '<span>Status</span>'+
+                    '<b>'+
+                      txt(status)+
+                    '</b>'+
+                  '</div>'+
+
+                  '<div class="paper-trade-field">'+
+                    '<span>Direction</span>'+
+                    '<b class="'+
+                      directionClass+
+                    '">'+
+                      txt(direction)+
+                    '</b>'+
+                  '</div>'+
+
+                  '<div class="paper-trade-field">'+
+                    '<span>Entry</span>'+
+                    '<b>'+
+                      entry+
+                    '</b>'+
+                  '</div>'+
+
+                  '<div class="paper-trade-field">'+
+                    '<span>Exit</span>'+
+                    '<b>'+
+                      exit+
+                    '</b>'+
+                  '</div>'+
+
+                  '<div class="paper-trade-field">'+
+                    '<span>Stop Loss</span>'+
+                    '<b>'+
+                      n(trade.stop_loss)+
+                    '</b>'+
+                  '</div>'+
+
+                  '<div class="paper-trade-field">'+
+                    '<span>Target</span>'+
+                    '<b>'+
+                      n(trade.target)+
+                    '</b>'+
+                  '</div>'+
+
+                  '<div class="paper-trade-field">'+
+                    '<span>P&L</span>'+
+                    '<b class="'+
+                      resultClass+
+                    '">'+
+                      pnlText+
+                    '</b>'+
+                  '</div>'+
+
+                  '<div class="paper-trade-field">'+
+                    '<span>Samples</span>'+
+                    '<b>'+
+                      samples+
+                    '</b>'+
+                  '</div>'+
+
+                  '<div class="paper-trade-field">'+
+                    '<span>Entry Time</span>'+
+                    '<b>'+
+                      t(trade.entry_time)+
+                    '</b>'+
+                  '</div>'+
+
+                  '<div class="paper-trade-field">'+
+                    '<span>Exit Time</span>'+
+                    '<b>'+
+                      t(trade.exit_time)+
+                    '</b>'+
+                  '</div>'+
+
+                  '<div class="paper-trade-field">'+
+                    '<span>Exit Reason</span>'+
+                    '<b class="'+
+                      resultClass+
+                    '">'+
+                      exitReason+
+                    '</b>'+
+                  '</div>'+
+
+                '</div>'+
+
+                '<div class="paper-trade-reason">'+
+                  '<strong>Decision:</strong> '+
+                  decisionReason+
+                '</div>'+
+
+              '</div>'+
+
+            '</details>'
+
+          );
+        }
+      ).join("");
+
+
+    historyHtml =
+
+      '<div class="paper-history">'+
+
+        '<details>'+
+
+          '<summary>'+
+            '<span>'+
+              'Trade History '+
+              '<span class="paper-history-count">'+
+                '('+
+                trades.length+
+                ' trades)'+
+              '</span>'+
+            '</span>'+
+          '</summary>'+
+
+          '<div class="paper-trade-list">'+
+            tradeRows+
+          '</div>'+
+
+        '</details>'+
+
+      '</div>';
+  }
+
+
+  /*
+   * --------------------------------------------------
+   * FINAL PAPER TRADE SECTION
+   * --------------------------------------------------
+   */
+
+  container.innerHTML =
+    activeHtml+
+    historyHtml;
 }
 
 function performanceNumber(v, suffix=""){
