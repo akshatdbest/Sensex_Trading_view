@@ -33,24 +33,118 @@ label{display:block;color:#8d96a0;font-size:12px;letter-spacing:1px}.value{displ
 <tbody id="history"></tbody></table></div></section>
 </main>
 <script>
-const n=v=>v==null||v===""?"—":Number(v).toLocaleString("en-IN",{maximumFractionDigits:2});
-const t=v=>v?new Date(v).toLocaleTimeString("en-IN",{hour12:false}):"—";
-async function refresh(){
- try{
-  const d=await (await fetch("/api/signals?limit=50",{cache:"no-store"})).json(), rows=d.signals||[];
-  status.textContent="● LIVE";status.style.color="#65d18a";
-  if(!rows.length){details.textContent="Waiting for TradingView webhook...";history.innerHTML="";return}
-  const s=rows[0],cls=(s.bias||"").toLowerCase();
-  price.textContent=n(s.price);event.textContent=s.event;tf.textContent=s.timeframe?s.timeframe+" min":"—";
-  bias.textContent=s.bias;bias.className="value "+cls;updated.textContent="Received "+t(s.received_at);
-  details.innerHTML=[
-   ["Ticker",s.ticker],["Exchange",s.exchange],["Open",n(s.open)],["High",n(s.high)],
-   ["Low",n(s.low)],["Volume",n(s.volume)],["Event time",t(s.event_time)],["Basic bias",s.bias]
-  ].map(x=>'<div class="detail">'+x[0]+'<b class="'+(x[0]=="Basic bias"?cls:"")+'">'+(x[1]??"—")+'</b></div>').join("");
-  history.innerHTML=rows.map(r=>'<tr><td>'+t(r.event_time||r.received_at)+'</td><td>'+r.event+'</td><td>'+n(r.price)+'</td><td>'+n(r.high)+'</td><td>'+n(r.low)+'</td><td>'+n(r.volume)+'</td><td class="'+(r.bias||"").toLowerCase()+'">'+r.bias+'</td></tr>').join("");
- }catch(e){status.textContent="● OFFLINE";status.style.color="#ff7070"}
+const $ = id => document.getElementById(id);
+
+const statusEl = $("status");
+const priceEl = $("price");
+const eventEl = $("event");
+const tfEl = $("tf");
+const biasEl = $("bias");
+const updatedEl = $("updated");
+const detailsEl = $("details");
+const historyEl = $("history");
+
+const n = v =>
+  v == null || v === ""
+    ? "—"
+    : Number(v).toLocaleString("en-IN", {
+        maximumFractionDigits: 2
+      });
+
+const t = v =>
+  v
+    ? new Date(v).toLocaleTimeString("en-IN", {
+        hour12: false
+      })
+    : "—";
+
+async function refresh() {
+  try {
+    const response = await fetch(
+      "/api/signals?limit=50",
+      { cache: "no-store" }
+    );
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+
+    const d = await response.json();
+    const rows = d.signals || [];
+
+    statusEl.textContent = "● LIVE";
+    statusEl.style.color = "#65d18a";
+
+    if (!rows.length) {
+      detailsEl.textContent = "Waiting for TradingView webhook...";
+      historyEl.innerHTML = "";
+      return;
+    }
+
+    const s = rows[0];
+    const cls = (s.bias || "").toLowerCase();
+
+    priceEl.textContent = n(s.price);
+    eventEl.textContent = s.event;
+    tfEl.textContent = s.timeframe
+      ? s.timeframe + " min"
+      : "—";
+
+    biasEl.textContent = s.bias;
+    biasEl.className = "value " + cls;
+
+    updatedEl.textContent =
+      "Received " + t(s.received_at);
+
+    detailsEl.innerHTML = [
+      ["Ticker", s.ticker],
+      ["Exchange", s.exchange],
+      ["Open", n(s.open)],
+      ["High", n(s.high)],
+      ["Low", n(s.low)],
+      ["Volume", n(s.volume)],
+      ["Event time", t(s.event_time)],
+      ["Basic bias", s.bias]
+    ]
+      .map(x =>
+        '<div class="detail">' +
+        x[0] +
+        '<b class="' +
+        (x[0] === "Basic bias" ? cls : "") +
+        '">' +
+        (x[1] ?? "—") +
+        "</b></div>"
+      )
+      .join("");
+
+    historyEl.innerHTML = rows
+      .map(r =>
+        "<tr>" +
+        "<td>" + t(r.event_time || r.received_at) + "</td>" +
+        "<td>" + r.event + "</td>" +
+        "<td>" + n(r.price) + "</td>" +
+        "<td>" + n(r.high) + "</td>" +
+        "<td>" + n(r.low) + "</td>" +
+        "<td>" + n(r.volume) + "</td>" +
+        '<td class="' +
+        (r.bias || "").toLowerCase() +
+        '">' +
+        r.bias +
+        "</td>" +
+        "</tr>"
+      )
+      .join("");
+
+  } catch (e) {
+    console.error("Dashboard refresh failed:", e);
+
+    statusEl.textContent = "● OFFLINE";
+    statusEl.style.color = "#ff7070";
+  }
 }
-refresh();setInterval(refresh,3000);
+
+refresh();
+setInterval(refresh, 3000);
 </script>
 </body></html>`;
 
