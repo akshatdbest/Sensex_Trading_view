@@ -1082,7 +1082,7 @@ Last snapshot
 <section class="cards">
 
 <div class="card primary">
-  <label>SENSEX</label>
+  <label>SENSEX · LIVE</label>
 
   <div id="price" class="big">
     —
@@ -3642,10 +3642,16 @@ async function refresh(){
     const rsi=
       Number(p.rsi);
 
-    const previous=
-      snapshots[1];
-
-    const currentPrice = Number(s.price);
+    const previousPrice =
+      previous
+        ? Number(previous.price)
+        : null;
+    
+    const liveMove =
+      Number.isFinite(currentPrice) &&
+      Number.isFinite(previousPrice)
+        ? currentPrice - previousPrice
+        : null;
     const dayOpen = Number(p.day_open);
     
     const dayChange =
@@ -3663,6 +3669,23 @@ async function refresh(){
     
     $("price").textContent =
       n(currentPrice);
+    
+    $("price").className =
+      "big " +
+      (
+        liveMove > 0
+          ? "day-up"
+          : liveMove < 0
+            ? "day-down"
+            : ""
+      );
+    
+    $("price").title =
+      Number.isFinite(liveMove)
+        ? "1m move: " +
+          (liveMove >= 0 ? "+" : "") +
+          n(liveMove)
+        : "";
     
     $("dayOpen").textContent =
       Number.isFinite(dayOpen)
