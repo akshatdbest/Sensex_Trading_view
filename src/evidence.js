@@ -129,58 +129,138 @@ function findFutureSnapshot(
   maxLagSeconds
 ) {
   /*
-   * Binary search for the first snapshot
-   * at or after targetTime.
+   * Find the first snapshot at or after
+   * the requested target time.
    *
-   * This is much faster than scanning the
-   * entire historical dataset for every row.
+   * rows must be sorted oldest -> newest.
+   *
+   * We use binary search to locate the
+   * first possible candidate, then check
+   * nearby rows so that small timestamp
+   * irregularities do not incorrectly
+   * eliminate a valid future snapshot.
    */
+
+  if (!rows || !rows.length) {
+    return null;
+  }
+
+  const targetMs =
+    targetTime.getTime();
 
   let low = 0;
   let high = rows.length - 1;
-  let candidate = -1;
+  let candidate = rows.length;
 
+  /*
+   * Find the first row whose timestamp
+   * is >= targetTime.
+   */
   while (low <= high) {
-    const mid =
-      Math.floor((low + high) / 2);
 
-    const rowTime =
+    const mid =
+      Math.floor(
+        (low + high) / 2
+      );
+
+    const rowMs =
       rows[mid].event_time.getTime();
 
-    if (
-      rowTime >= targetTime.getTime()
-    ) {
+    if (rowMs >= targetMs) {
+
       candidate = mid;
       high = mid - 1;
+
     } else {
+
       low = mid + 1;
     }
   }
 
-  if (candidate === -1) {
-    return null;
-  }
-
-  const row = rows[candidate];
-
-  const diffSeconds = Math.round(
-    (
-      row.event_time.getTime() -
-      targetTime.getTime()
-    ) / 1000
-  );
-
+  /*
+   * No snapshot exists at or after
+   * the requested target time.
+   */
   if (
-    diffSeconds < 0 ||
-    diffSeconds > maxLagSeconds
+    candidate >= rows.length
   ) {
     return null;
   }
 
-  return {
-    row,
-    lag_seconds: diffSeconds
-  };
+  /*
+   * Check the first candidate and a
+   * few immediately following snapshots.
+   *
+   * This handles irregular 1-minute
+   * TradingView delivery without scanning
+   * the complete historical dataset.
+   */
+  const end =
+    Math.min(
+      candidate + 3,
+      rows.length - 1
+    );
+
+  let best = null;
+
+  for (
+    let i = candidate;
+    i <= end;
+    i++
+  ) {
+
+    const row =
+      rows[i];
+
+    if (
+      !row ||
+      !row.event_time
+    ) {
+      continue;
+    }
+
+    const diffSeconds =
+      Math.round(
+        (
+          row.event_time.getTime() -
+          targetMs
+        ) / 1000
+      );
+
+    /*
+     * Future snapshot must never be
+     * before the requested target.
+     */
+    if (
+      diffSeconds < 0
+    ) {
+      continue;
+    }
+
+    /*
+     * Snapshot is too far after the
+     * requested target.
+     */
+    if (
+      diffSeconds >
+      maxLagSeconds
+    ) {
+      break;
+    }
+
+    /*
+     * The first valid snapshot is the
+     * closest valid future observation.
+     */
+    best = {
+      row,
+      lag_seconds: diffSeconds
+    };
+
+    break;
+  }
+
+  return best;
 }
 
 function median(values) {
