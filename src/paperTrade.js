@@ -1142,29 +1142,57 @@ async function processPaperTrade(
   }
 
 
+  const levels =
+    calculateDynamicTradeLevels(
+      direction,
+      price,
+      currentState
+    );
+  
+  
+  if(!levels.valid){
+  
+    return {
+      action:"NO_ENTRY",
+  
+      reason:
+        levels.reason ||
+        "Dynamic risk engine rejected the trade."
+    };
+  }
+  
+  
+  const dynamicReason =
+    decision.reason+
+    " "+
+    levels.stopReason+
+    " "+
+    levels.targetReason;
+  
+  
   return openPaperTrade(
     db,
     {
       direction,
-
+  
       entryTime:
         currentState?.event_time ||
         new Date().toISOString(),
-
+  
       entryPrice:
         price,
-
+  
       decisionReason:
-        decision.reason,
-
+        dynamicReason,
+  
       evidenceSamples:
         samples,
-
+  
       stopPoints:
-        DEFAULT_STOP_POINTS,
-
+        levels.riskPoints,
+  
       targetPoints:
-        DEFAULT_TARGET_POINTS
+        levels.rewardPoints
     }
   );
 }
