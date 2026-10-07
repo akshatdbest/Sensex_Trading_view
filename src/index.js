@@ -4143,9 +4143,9 @@ async function processLatestPaperTrade(
     {
       decision:
         decisionData.decision,
-
+  
       currentState:
-        decisionData.current_state
+        snapshot
     }
   );
 }
