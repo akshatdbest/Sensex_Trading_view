@@ -11,8 +11,11 @@
 // - Keep this intentionally simple for the first end-to-end model.
 
 
-const DEFAULT_STOP_POINTS = 50;
-const DEFAULT_TARGET_POINTS = 100;
+const DEFAULT_RISK_REWARD = 2.0;
+
+const MIN_RISK_REWARD = 1.5;
+
+const MIN_STRUCTURE_BUFFER = 10;
 
 
 const VALID_DIRECTIONS = new Set([
@@ -110,7 +113,315 @@ function normalizeTime(value){
     : d.toISOString();
 }
 
+function calculateDynamicTradeLevels(
+  direction,
+  entryPrice,
+  marketData
+){
 
+  const payload =
+    marketData?.raw_payload ||
+    marketData ||
+    {};
+
+
+  const price =
+    Number(entryPrice);
+
+
+  if(
+    !Number.isFinite(price)
+  ){
+
+    return {
+      valid:false,
+      reason:
+        "Entry price is unavailable."
+    };
+  }
+
+
+  const support =
+    num(
+      payload.nearest_support
+    );
+
+  const resistance =
+    num(
+      payload.nearest_resistance
+    );
+
+  const tolerance =
+    Math.max(
+      num(payload.sr_tolerance) || 0,
+      0
+    );
+
+  const breakBuffer =
+    Math.max(
+      num(payload.sr_break_buffer) || 0,
+      0
+    );
+
+
+  /*
+   * Structural buffer.
+   *
+   * The stop must sit beyond the
+   * actual invalidation zone.
+   */
+
+  const buffer =
+    Math.max(
+      breakBuffer,
+      tolerance,
+      MIN_STRUCTURE_BUFFER
+    );
+
+
+  let stopLoss;
+  let targetPrice;
+
+
+  /*
+   * --------------------------------------------------
+   * CALL
+   * --------------------------------------------------
+   */
+
+  if(
+    direction === "CALL"
+  ){
+
+    if(
+      support === null ||
+      support >= price
+    ){
+
+      return {
+        valid:false,
+        reason:
+          "No valid support exists below CALL entry."
+      };
+    }
+
+
+    stopLoss =
+      support -
+      buffer;
+
+
+    const risk =
+      price -
+      stopLoss;
+
+
+    if(
+      !Number.isFinite(risk) ||
+      risk <= 0
+    ){
+
+      return {
+        valid:false,
+        reason:
+          "Invalid structural risk for CALL."
+      };
+    }
+
+
+    /*
+     * Prefer the nearest resistance
+     * as the first structural target.
+     */
+
+    if(
+      resistance !== null &&
+      resistance > price
+    ){
+
+      targetPrice =
+        resistance -
+        buffer;
+
+    }else{
+
+      targetPrice =
+        price +
+        (
+          risk *
+          DEFAULT_RISK_REWARD
+        );
+    }
+
+
+    const reward =
+      targetPrice -
+      price;
+
+
+    /*
+     * If resistance is too close,
+     * the trade is not attractive.
+     */
+
+    if(
+      reward <= 0 ||
+      reward <
+        risk * MIN_RISK_REWARD
+    ){
+
+      return {
+        valid:false,
+        reason:
+          "CALL rejected because the next resistance does not provide enough reward for the structural risk."
+      };
+    }
+
+
+    return {
+
+      valid:true,
+
+      stopLoss,
+
+      targetPrice,
+
+      riskPoints:risk,
+
+      rewardPoints:reward,
+
+      stopReason:
+        "Below nearest support + structural break buffer.",
+
+      targetReason:
+        resistance !== null &&
+        resistance > price
+          ? "Before nearest resistance."
+          : "Dynamic 2R target because no usable resistance is available."
+    };
+  }
+
+
+  /*
+   * --------------------------------------------------
+   * PUT
+   * --------------------------------------------------
+   */
+
+  if(
+    direction === "PUT"
+  ){
+
+    if(
+      resistance === null ||
+      resistance <= price
+    ){
+
+      return {
+        valid:false,
+        reason:
+          "No valid resistance exists above PUT entry."
+      };
+    }
+
+
+    stopLoss =
+      resistance +
+      buffer;
+
+
+    const risk =
+      stopLoss -
+      price;
+
+
+    if(
+      !Number.isFinite(risk) ||
+      risk <= 0
+    ){
+
+      return {
+        valid:false,
+        reason:
+          "Invalid structural risk for PUT."
+      };
+    }
+
+
+    /*
+     * Prefer nearest support
+     * as the first structural target.
+     */
+
+    if(
+      support !== null &&
+      support < price
+    ){
+
+      targetPrice =
+        support +
+        buffer;
+
+    }else{
+
+      targetPrice =
+        price -
+        (
+          risk *
+          DEFAULT_RISK_REWARD
+        );
+    }
+
+
+    const reward =
+      price -
+      targetPrice;
+
+
+    if(
+      reward <= 0 ||
+      reward <
+        risk * MIN_RISK_REWARD
+    ){
+
+      return {
+        valid:false,
+        reason:
+          "PUT rejected because the next support does not provide enough reward for the structural risk."
+      };
+    }
+
+
+    return {
+
+      valid:true,
+
+      stopLoss,
+
+      targetPrice,
+
+      riskPoints:risk,
+
+      rewardPoints:reward,
+
+      stopReason:
+        "Above nearest resistance + structural break buffer.",
+
+      targetReason:
+        support !== null &&
+        support < price
+          ? "Before nearest support."
+          : "Dynamic 2R target because no usable support is available."
+    };
+  }
+
+
+  return {
+    valid:false,
+    reason:
+      "Unknown trade direction."
+  };
+}
 // ------------------------------------------------------------
 // Get active trade
 // ------------------------------------------------------------
