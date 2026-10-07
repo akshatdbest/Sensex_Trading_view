@@ -547,6 +547,144 @@ main{
   margin-top:16px;
   padding:18px
 }
+.structure-grid{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:12px
+}
+
+.structure-card{
+  background:var(--panel2);
+  border:1px solid #1c242d;
+  border-radius:9px;
+  padding:14px
+}
+
+.structure-level{
+  display:flex;
+  align-items:flex-end;
+  justify-content:space-between;
+  gap:10px
+}
+
+.structure-level-label{
+  color:var(--muted);
+  font-size:9px;
+  text-transform:uppercase;
+  letter-spacing:.1em
+}
+
+.structure-level-value{
+  margin-top:6px;
+  font-size:20px;
+  font-weight:800
+}
+
+.structure-level-type{
+  margin-top:4px;
+  color:var(--muted);
+  font-size:10px
+}
+
+.structure-distance{
+  text-align:right
+}
+
+.structure-distance span{
+  display:block;
+  color:var(--muted);
+  font-size:9px;
+  text-transform:uppercase;
+  letter-spacing:.1em
+}
+
+.structure-distance b{
+  display:block;
+  margin-top:5px;
+  font-size:14px
+}
+
+.structure-stats{
+  display:grid;
+  grid-template-columns:repeat(4,1fr);
+  gap:7px;
+  margin-top:12px
+}
+
+.structure-stat{
+  background:#10151b;
+  border:1px solid #222c36;
+  border-radius:7px;
+  padding:8px
+}
+
+.structure-stat span{
+  display:block;
+  color:var(--muted);
+  font-size:8px;
+  text-transform:uppercase;
+  letter-spacing:.08em
+}
+
+.structure-stat b{
+  display:block;
+  margin-top:5px;
+  font-size:12px
+}
+
+.structure-summary{
+  margin-top:12px;
+  padding:12px 13px;
+  border-radius:8px;
+  background:#10151b;
+  border:1px solid #222c36
+}
+
+.structure-summary-label{
+  color:var(--muted);
+  font-size:9px;
+  text-transform:uppercase;
+  letter-spacing:.1em
+}
+
+.structure-summary-value{
+  margin-top:5px;
+  font-size:15px;
+  font-weight:800
+}
+
+.structure-summary-note{
+  margin-top:5px;
+  color:var(--muted);
+  font-size:10px;
+  line-height:1.45
+}
+
+.structure-near{
+  color:var(--amber)
+}
+
+.structure-bull{
+  color:var(--green)
+}
+
+.structure-bear{
+  color:var(--red)
+}
+
+.structure-neutral{
+  color:var(--muted)
+}
+
+@media(max-width:700px){
+  .structure-grid{
+    grid-template-columns:1fr
+  }
+
+  .structure-stats{
+    grid-template-columns:repeat(2,1fr)
+  }
+}
 .panel-head{
   display:flex;
   align-items:center;
@@ -1142,7 +1280,29 @@ Values are sourced directly from the TradingView snapshot
 ></div>
 
 </section>
+<section class="panel">
 
+<div class="panel-head">
+
+<div class="panel-title">
+Market Structure
+</div>
+
+<div class="panel-note">
+Nearest TradingView support / resistance · level tests and pressure
+</div>
+
+</div>
+
+<div id="structureContent">
+
+<div class="empty">
+Loading market structure...
+</div>
+
+</div>
+
+</section>
 <section class="panel">
 
 <div class="panel-head">
@@ -1406,7 +1566,326 @@ function renderState(s,p){
 
   ].join("");
 }
+function structureStateClass(state){
+  const value = String(state || "").toUpperCase();
 
+  if(
+    value.includes("TESTING") ||
+    value.includes("APPROACHING")
+  ){
+    return "structure-near";
+  }
+
+  if(
+    value.includes("BROKE") ||
+    value.includes("BREAK")
+  ){
+    return "structure-bull";
+  }
+
+  return "structure-neutral";
+}
+
+
+function structureInterpretation(p){
+
+  const supportState =
+    String(p.support_state || "").toUpperCase();
+
+  const resistanceState =
+    String(p.resistance_state || "").toUpperCase();
+
+  const supportDistance =
+    Number(p.support_distance);
+
+  const resistanceDistance =
+    Number(p.resistance_distance);
+
+  const supportPressure =
+    Number(p.support_pressure || 0);
+
+  const resistancePressure =
+    Number(p.resistance_pressure || 0);
+
+  const tolerance =
+    Number(p.sr_tolerance || 0);
+
+  if(supportState === "TESTING"){
+    return {
+      label:"TESTING SUPPORT",
+      className:"structure-near",
+      note:"Price is currently interacting with the nearest support level."
+    };
+  }
+
+  if(resistanceState === "TESTING"){
+    return {
+      label:"TESTING RESISTANCE",
+      className:"structure-near",
+      note:"Price is currently interacting with the nearest resistance level."
+    };
+  }
+
+  if(
+    Number.isFinite(supportDistance) &&
+    supportDistance <= Math.max(tolerance * 4, 50) &&
+    supportPressure >= 3
+  ){
+    return {
+      label:"APPROACHING SUPPORT",
+      className:"structure-near",
+      note:"Support is relatively close and has seen repeated recent tests."
+    };
+  }
+
+  if(
+    Number.isFinite(resistanceDistance) &&
+    resistanceDistance <= Math.max(tolerance * 4, 50) &&
+    resistancePressure >= 3
+  ){
+    return {
+      label:"APPROACHING RESISTANCE",
+      className:"structure-near",
+      note:"Resistance is relatively close and has seen repeated recent tests."
+    };
+  }
+
+  const rawState =
+    String(p.structure_state || "BETWEEN_LEVELS")
+      .replaceAll("_"," ");
+
+  return {
+    label:rawState,
+    className:"structure-neutral",
+    note:"Price is currently between the nearest detected structure levels."
+  };
+}
+
+
+function renderStructure(p){
+
+  const container = $("structureContent");
+
+  if(!container){
+    return;
+  }
+
+  const resistance =
+    Number(p.nearest_resistance);
+
+  const support =
+    Number(p.nearest_support);
+
+  const resistanceDistance =
+    Number(p.resistance_distance);
+
+  const supportDistance =
+    Number(p.support_distance);
+
+  const resistanceTests15 =
+    Number(p.resistance_tests_15m || 0);
+
+  const resistanceTests30 =
+    Number(p.resistance_tests_30m || 0);
+
+  const resistancePressure =
+    Number(p.resistance_pressure || 0);
+
+  const supportTests15 =
+    Number(p.support_tests_15m || 0);
+
+  const supportTests30 =
+    Number(p.support_tests_30m || 0);
+
+  const supportFailed15 =
+    Number(p.support_failed_breaks_15m || 0);
+
+  const supportFailed30 =
+    Number(p.support_failed_breaks_30m || 0);
+
+  const supportPressure =
+    Number(p.support_pressure || 0);
+
+  const interpretation =
+    structureInterpretation(p);
+
+  const resistanceState =
+    String(p.resistance_state || "AWAY");
+
+  const supportState =
+    String(p.support_state || "AWAY");
+
+  container.innerHTML = `
+
+<div class="structure-grid">
+
+  <div class="structure-card">
+
+    <div class="structure-level">
+
+      <div>
+
+        <div class="structure-level-label">
+          Nearest Resistance
+        </div>
+
+        <div class="structure-level-value">
+          ${
+            Number.isFinite(resistance)
+              ? n(resistance)
+              : "—"
+          }
+        </div>
+
+        <div class="structure-level-type">
+          ${
+            p.resistance_type || "—"
+          }
+        </div>
+
+      </div>
+
+      <div class="structure-distance">
+
+        <span>Distance</span>
+
+        <b>
+          ${
+            Number.isFinite(resistanceDistance)
+              ? n(resistanceDistance) + " pts"
+              : "—"
+          }
+        </b>
+
+      </div>
+
+    </div>
+
+    <div class="structure-stats">
+
+      <div class="structure-stat">
+        <span>State</span>
+        <b class="${structureStateClass(resistanceState)}">
+          ${resistanceState}
+        </b>
+      </div>
+
+      <div class="structure-stat">
+        <span>Tests 15m</span>
+        <b>${resistanceTests15}</b>
+      </div>
+
+      <div class="structure-stat">
+        <span>Tests 30m</span>
+        <b>${resistanceTests30}</b>
+      </div>
+
+      <div class="structure-stat">
+        <span>Pressure</span>
+        <b>${resistancePressure}</b>
+      </div>
+
+    </div>
+
+  </div>
+
+
+  <div class="structure-card">
+
+    <div class="structure-level">
+
+      <div>
+
+        <div class="structure-level-label">
+          Nearest Support
+        </div>
+
+        <div class="structure-level-value">
+          ${
+            Number.isFinite(support)
+              ? n(support)
+              : "—"
+          }
+        </div>
+
+        <div class="structure-level-type">
+          ${
+            p.support_type || "—"
+          }
+        </div>
+
+      </div>
+
+      <div class="structure-distance">
+
+        <span>Distance</span>
+
+        <b>
+          ${
+            Number.isFinite(supportDistance)
+              ? n(supportDistance) + " pts"
+              : "—"
+          }
+        </b>
+
+      </div>
+
+    </div>
+
+    <div class="structure-stats">
+
+      <div class="structure-stat">
+        <span>State</span>
+        <b class="${structureStateClass(supportState)}">
+          ${supportState}
+        </b>
+      </div>
+
+      <div class="structure-stat">
+        <span>Tests 15m</span>
+        <b>${supportTests15}</b>
+      </div>
+
+      <div class="structure-stat">
+        <span>Failed 15m</span>
+        <b>${supportFailed15}</b>
+      </div>
+
+      <div class="structure-stat">
+        <span>Pressure</span>
+        <b>${supportPressure}</b>
+      </div>
+
+    </div>
+
+    <div class="sub">
+      30m tests: ${supportTests30}
+      · 30m failed breaks: ${supportFailed30}
+    </div>
+
+  </div>
+
+</div>
+
+
+<div class="structure-summary">
+
+  <div class="structure-summary-label">
+    Structure interpretation
+  </div>
+
+  <div class="structure-summary-value ${interpretation.className}">
+    ${interpretation.label}
+  </div>
+
+  <div class="structure-summary-note">
+    ${interpretation.note}
+  </div>
+
+</div>
+
+`;
+}
 function evidencePct(v){
 
   if(
@@ -3053,7 +3532,8 @@ async function refresh(){
         :"var(--amber)";
 
     if(!s){
-
+      $("structureContent").innerHTML =
+        '<div class="empty">No market structure data available.</div>';
       $("stateGrid").innerHTML=
         '<div class="empty" '+
         'style="grid-column:1/-1">'+
@@ -3249,7 +3729,7 @@ async function refresh(){
       s,
       p
     );
-
+    renderStructure(p);
     $("history").innerHTML=
       snapshots.map(
         r=>{
