@@ -809,7 +809,260 @@ async function closePaperTrade(
   };
 }
 
+function calculateTrailingStop(
+  trade,
+  payload,
+  currentPrice
+){
 
+  const entry =
+    Number(
+      trade.entry_price
+    );
+
+  const currentStop =
+    Number(
+      trade.stop_loss
+    );
+
+  const target =
+    Number(
+      trade.target
+    );
+
+
+  if(
+    !Number.isFinite(entry) ||
+    !Number.isFinite(currentStop) ||
+    !Number.isFinite(target) ||
+    !Number.isFinite(currentPrice)
+  ){
+
+    return null;
+  }
+
+
+  const totalMove =
+    Math.abs(
+      target-entry
+    );
+
+
+  if(
+    totalMove <= 0
+  ){
+
+    return null;
+  }
+
+
+  let favorableMove;
+
+
+  if(
+    trade.direction === "CALL"
+  ){
+
+    favorableMove =
+      currentPrice-entry;
+
+  }else{
+
+    favorableMove =
+      entry-currentPrice;
+  }
+
+
+  if(
+    favorableMove <= 0
+  ){
+
+    return null;
+  }
+
+
+  const progress =
+    favorableMove /
+    totalMove;
+
+
+  let proposedStop =
+    currentStop;
+
+
+  /*
+   * --------------------------------------------------
+   * 40% progress
+   * Move to breakeven.
+   * --------------------------------------------------
+   */
+
+  if(
+    progress >= 0.40
+  ){
+
+    if(
+      trade.direction === "CALL"
+    ){
+
+      proposedStop =
+        Math.max(
+          proposedStop,
+          entry
+        );
+
+    }else{
+
+      proposedStop =
+        Math.min(
+          proposedStop,
+          entry
+        );
+    }
+  }
+
+
+  /*
+   * --------------------------------------------------
+   * 70% progress
+   * Lock approximately 25% of
+   * the achieved move.
+   * --------------------------------------------------
+   */
+
+  if(
+    progress >= 0.70
+  ){
+
+    const locked =
+      favorableMove *
+      0.25;
+
+
+    if(
+      trade.direction === "CALL"
+    ){
+
+      proposedStop =
+        Math.max(
+          proposedStop,
+          entry + locked
+        );
+
+    }else{
+
+      proposedStop =
+        Math.min(
+          proposedStop,
+          entry - locked
+        );
+    }
+  }
+
+
+  /*
+   * --------------------------------------------------
+   * Structural trailing
+   *
+   * If a new support/resistance has
+   * moved in our favour, use it.
+   * --------------------------------------------------
+   */
+
+  const support =
+    num(
+      payload.nearest_support
+    );
+
+  const resistance =
+    num(
+      payload.nearest_resistance
+    );
+
+  const tolerance =
+    Math.max(
+      num(payload.sr_tolerance) || 0,
+      0
+    );
+
+  const breakBuffer =
+    Math.max(
+      num(payload.sr_break_buffer) || 0,
+      0
+    );
+
+  const buffer =
+    Math.max(
+      tolerance,
+      breakBuffer,
+      MIN_STRUCTURE_BUFFER
+    );
+
+
+  if(
+    trade.direction === "CALL" &&
+    support !== null &&
+    support < currentPrice
+  ){
+
+    const structuralStop =
+      support-buffer;
+
+    proposedStop =
+      Math.max(
+        proposedStop,
+        structuralStop
+      );
+  }
+
+
+  if(
+    trade.direction === "PUT" &&
+    resistance !== null &&
+    resistance > currentPrice
+  ){
+
+    const structuralStop =
+      resistance+buffer;
+
+    proposedStop =
+      Math.min(
+        proposedStop,
+        structuralStop
+      );
+  }
+
+
+  /*
+   * Never widen risk.
+   */
+
+  if(
+    trade.direction === "CALL"
+  ){
+
+    if(
+      proposedStop >
+      currentStop
+    ){
+
+      return proposedStop;
+    }
+
+  }else{
+
+    if(
+      proposedStop <
+      currentStop
+    ){
+
+      return proposedStop;
+    }
+  }
+
+
+  return null;
+}
 // ------------------------------------------------------------
 // Evaluate an open trade against a new market snapshot
 // ------------------------------------------------------------
@@ -907,7 +1160,36 @@ async function evaluatePaperTrade(
 
   const target =
     Number(trade.target);
-
+  const trailingStop =
+    calculateTrailingStop(
+      trade,
+      payload,
+      currentPrice
+    );
+  
+  
+  if(
+    trailingStop !== null
+  ){
+  
+    await db.prepare(`
+      UPDATE paper_trades
+      SET stop_loss = ?
+      WHERE id = ?
+        AND status = 'OPEN'
+    `)
+    .bind(
+      trailingStop,
+      trade.id
+    )
+    .run();
+  
+    trade = {
+      ...trade,
+      stop_loss:
+        trailingStop
+    };
+}
 
   /*
    * CALL:
