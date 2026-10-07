@@ -1485,9 +1485,6 @@ async function processPaperTrade(
 // ------------------------------------------------------------
 
 export {
-  DEFAULT_STOP_POINTS,
-  DEFAULT_TARGET_POINTS,
-
   initPaperTradeDb,
 
   getActivePaperTrade,
