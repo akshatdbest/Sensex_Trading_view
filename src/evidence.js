@@ -115,11 +115,7 @@ function stateSignature(state) {
   return [
     state.rsi_bucket,
     state.trend,
-    state.volume_state,
-    state.vwap,
-    state.or_state,
-    state.vpc_zone,
-    state.session
+    state.vwap
   ].join("|");
 }
 
@@ -374,11 +370,7 @@ function createEvidenceGroup(state) {
     state: {
       rsi_bucket: state.rsi_bucket,
       trend: state.trend,
-      volume_state: state.volume_state,
-      vwap: state.vwap,
-      or_state: state.or_state,
-      vpc_zone: state.vpc_zone,
-      session: state.session
+      vwap: state.vwap
     },
 
     outcomes: {
@@ -820,7 +812,7 @@ export async function calculateEvidence(
       ],
 
       state_signature:
-        "RSI bucket + Trend + Volume + VWAP + OR + VPC + Session",
+        "RSI bucket + Trend + VWAP",
 
       outcome_horizons: [
         "1m",
