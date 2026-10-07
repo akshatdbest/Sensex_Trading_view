@@ -520,8 +520,7 @@ async function openPaperTrade(
     entryPrice,
     decisionReason,
     evidenceSamples,
-    stopPoints = DEFAULT_STOP_POINTS,
-    targetPoints = DEFAULT_TARGET_POINTS
+    snapshot
   }
 ){
 
@@ -534,16 +533,16 @@ async function openPaperTrade(
   if(!normalizedDirection){
 
     return {
-      opened: false,
-      reason: "Invalid trade direction."
+      opened:false,
+      reason:"Invalid trade direction."
     };
   }
 
   if(price === null){
 
     return {
-      opened: false,
-      reason: "Entry price is unavailable."
+      opened:false,
+      reason:"Entry price is unavailable."
     };
   }
 
@@ -556,9 +555,9 @@ async function openPaperTrade(
   if(existing){
 
     return {
-      opened: false,
-      reason: "A paper trade is already open.",
-      trade: existing
+      opened:false,
+      reason:"A paper trade is already open.",
+      trade:existing
     };
   }
 
@@ -569,64 +568,43 @@ async function openPaperTrade(
   if(samples < 20){
 
     return {
-      opened: false,
+      opened:false,
       reason:
         `Insufficient evidence (${samples}/20 samples required).`
     };
   }
 
 
-  const stop =
-    Number(stopPoints);
+  /*
+   * ----------------------------------------------------------
+   * Dynamic structural SL / target
+   * ----------------------------------------------------------
+   */
 
-  const target =
-    Number(targetPoints);
+  const levels =
+    calculateDynamicTradeLevels(
+      normalizedDirection,
+      price,
+      snapshot
+    );
 
 
-  if(
-    !Number.isFinite(stop) ||
-    stop <= 0
-  ){
+  if(!levels.valid){
 
     return {
-      opened: false,
-      reason: "Invalid stop-loss points."
+      opened:false,
+      reason:
+        levels.reason ||
+        "Dynamic risk engine rejected the trade."
     };
   }
 
 
-  if(
-    !Number.isFinite(target) ||
-    target <= 0
-  ){
+  const stopLoss =
+    levels.stopLoss;
 
-    return {
-      opened: false,
-      reason: "Invalid target points."
-    };
-  }
-
-
-  let stopLoss;
-  let targetPrice;
-
-
-  if(normalizedDirection === "CALL"){
-
-    stopLoss =
-      price - stop;
-
-    targetPrice =
-      price + target;
-
-  }else{
-
-    stopLoss =
-      price + stop;
-
-    targetPrice =
-      price - target;
-  }
+  const targetPrice =
+    levels.targetPrice;
 
 
   const createdAt =
@@ -666,7 +644,7 @@ async function openPaperTrade(
         NULL,
         NULL,
         NULL,
-        ?,
+        NULL,
         ?,
         ?,
         ?
@@ -679,7 +657,6 @@ async function openPaperTrade(
       price,
       stopLoss,
       targetPrice,
-      null,
       decisionReason || "",
       samples,
       createdAt
@@ -692,21 +669,37 @@ async function openPaperTrade(
 
 
   return {
-    opened: true,
+    opened:true,
 
-    trade: {
-      id: tradeId,
-      status: "OPEN",
-      direction: normalizedDirection,
-      entry_time: normalizedEntryTime,
-      entry_price: price,
-      stop_loss: stopLoss,
-      target: targetPrice,
-      evidence_samples: samples
+    trade:{
+      id:tradeId,
+      status:"OPEN",
+      direction:normalizedDirection,
+      entry_time:normalizedEntryTime,
+      entry_price:price,
+      stop_loss:stopLoss,
+      target:targetPrice,
+
+      risk_points:
+        levels.riskPoints,
+
+      reward_points:
+        levels.rewardPoints,
+
+      risk_reward:
+        levels.rewardPoints /
+        levels.riskPoints,
+
+      stop_reason:
+        levels.stopReason,
+
+      target_reason:
+        levels.targetReason,
+
+      evidence_samples:samples
     }
   };
 }
-
 
 // ------------------------------------------------------------
 // Close a paper trade
@@ -1155,9 +1148,9 @@ async function evaluatePaperTrade(
   }
 
 
-  const stop =
+  let stop =
     Number(trade.stop_loss);
-
+  
   const target =
     Number(trade.target);
   const trailingStop =
@@ -1189,6 +1182,8 @@ async function evaluatePaperTrade(
       stop_loss:
         trailingStop
     };
+    stop =
+      trailingStop;
 }
 
   /*
@@ -1350,7 +1345,8 @@ async function processPaperTrade(
   db,
   {
     decision,
-    currentState
+    currentState,
+    snapshot
   }
 ){
 
@@ -1408,10 +1404,11 @@ async function processPaperTrade(
     );
 
 
-  const price =
-    num(
-      currentState?.price
-    );
+const price =
+  num(
+    currentState?.price ??
+    snapshot?.price
+  );
 
 
   if(price === null){
@@ -1428,7 +1425,7 @@ async function processPaperTrade(
     calculateDynamicTradeLevels(
       direction,
       price,
-      currentState
+      snapshot
     );
   
   
@@ -1445,12 +1442,14 @@ async function processPaperTrade(
   
   
   const dynamicReason =
-    decision.reason+
-    " "+
-    levels.stopReason+
-    " "+
-    levels.targetReason;
-  
+    [
+      decision.reason,
+      levels.stopReason,
+      levels.targetReason,
+      `Risk ${levels.riskPoints.toFixed(2)} points`,
+      `Reward ${levels.rewardPoints.toFixed(2)} points`,
+      `R:R ${(levels.rewardPoints / levels.riskPoints).toFixed(2)}`
+    ].join(" | ");
   
   return openPaperTrade(
     db,
@@ -1459,6 +1458,7 @@ async function processPaperTrade(
   
       entryTime:
         currentState?.event_time ||
+        snapshot?.event_time ||
         new Date().toISOString(),
   
       entryPrice:
@@ -1470,11 +1470,7 @@ async function processPaperTrade(
       evidenceSamples:
         samples,
   
-      stopPoints:
-        levels.riskPoints,
-  
-      targetPoints:
-        levels.rewardPoints
+      snapshot
     }
   );
 }
