@@ -24,29 +24,28 @@ const DASHBOARD = `<!doctype html>
 <title>SENSEX Signal Engine</title>
 <style>
 :root{
-  --bg:#0b0e12;
-  --panel:#11161c;
-  --panel2:#0d1217;
-  --line:#202832;
-  --text:#edf2f7;
-  --muted:#7f8b99;
-  --accent:#5aa9ff;
-  --green:#42d392;
-  --red:#ff6573;
-  --amber:#f4c95d;
-  --cyan:#62d7e8;
-  --shadow:0 12px 35px rgba(0,0,0,.22)
+  --bg:#0b0d10;
+  --panel:#101318;
+  --panel2:#0d1014;
+  --line:#252b33;
+
+  --text:#e2e6eb;
+  --muted:#858e99;
+
+  --accent:#58a6ff;
+
+  --green:#3fb950;
+  --red:#f85149;
+  --amber:#d29922;
+  --cyan:#8b949e;
+
+  --shadow:none;
 }
 *{box-sizing:border-box}
 html{background:var(--bg)}
 body{
   margin:0;
-  background:
-    radial-gradient(
-      circle at 15% 0%,
-      #151d27 0,
-      #0b0e12 35%
-    );
+  background:var(--bg);
   color:var(--text);
   font-family:
     Inter,
@@ -110,11 +109,10 @@ header{
   font-weight:700
 }
 .dot{
-  width:8px;
-  height:8px;
+  width:7px;
+  height:7px;
   border-radius:50%;
   background:currentColor;
-  box-shadow:0 0 12px currentColor
 }
 main{
   max-width:1500px;
@@ -157,27 +155,17 @@ main{
 .panel,
 .decision-panel,
 .paper-panel{
-  background:
-    linear-gradient(
-      180deg,
-      rgba(20,26,33,.96),
-      rgba(14,18,23,.96)
-    );
+  background:var(--panel);
   border:1px solid var(--line);
-  border-radius:13px;
-  box-shadow:var(--shadow)
+  border-radius:6px;
+  box-shadow:none;
 }
 .card{
   padding:17px 18px;
   min-height:112px
 }
 .card.primary{
-  background:
-    linear-gradient(
-      135deg,
-      #121c28,
-      #10161d
-    )
+  background:#11161c;
 }
 .card label{
   display:block;
