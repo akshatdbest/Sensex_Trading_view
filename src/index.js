@@ -192,6 +192,13 @@ main{
   letter-spacing:-.035em;
   margin-top:11px
 }
+.day-up{
+  color:var(--green);
+}
+
+.day-down{
+  color:var(--red);
+}
 .sub{
   margin-top:7px;
   color:var(--muted);
@@ -937,15 +944,19 @@ Last snapshot
 <section class="cards">
 
 <div class="card primary">
-<label>
-Last price
-</label>
-<div id="price" class="big">
-—
-</div>
-<div class="sub">
-1-minute market snapshot
-</div>
+  <label>SENSEX</label>
+
+  <div id="price" class="big">
+    —
+  </div>
+
+  <div id="dayChange" class="sub">
+    Day change —
+  </div>
+
+  <div id="dayOpen" class="sub">
+    Day open —
+  </div>
 </div>
 
 <div class="card">
@@ -3069,25 +3080,57 @@ async function refresh(){
     const previous=
       snapshots[1];
 
-    const delta=
-      previous
-        ?Number(s.price)-
-          Number(previous.price)
-        :null;
-
-    $("price").textContent=
-      n(s.price);
-
-    $("price").title=
-      delta==null
-        ?""
-        :"1m change: "+
-        (
-          delta>=0
-            ?"+"
-            :""
-        )+
-        n(delta);
+    const currentPrice = Number(s.price);
+    const dayOpen = Number(p.day_open);
+    
+    const dayChange =
+      Number.isFinite(currentPrice) &&
+      Number.isFinite(dayOpen)
+        ? currentPrice - dayOpen
+        : null;
+    
+    const dayChangePct =
+      Number.isFinite(dayChange) &&
+      Number.isFinite(dayOpen) &&
+      dayOpen !== 0
+        ? (dayChange / dayOpen) * 100
+        : null;
+    
+    $("price").textContent =
+      n(currentPrice);
+    
+    $("dayOpen").textContent =
+      Number.isFinite(dayOpen)
+        ? "Day open " + n(dayOpen)
+        : "Day open —";
+    
+    $("dayChange").textContent =
+      Number.isFinite(dayChange)
+        ? (
+            dayChange >= 0 ? "▲ +" : "▼ "
+          ) +
+          n(dayChange) +
+          (
+            Number.isFinite(dayChangePct)
+              ? " (" +
+                (
+                  dayChangePct >= 0 ? "+" : ""
+                ) +
+                dayChangePct.toFixed(2) +
+                "%)"
+              : ""
+          )
+        : "Day change —";
+    
+    $("dayChange").className =
+      "sub " +
+      (
+        dayChange > 0
+          ? "day-up"
+          : dayChange < 0
+            ? "day-down"
+            : ""
+      );
 
     $("rsi").textContent=
       n(p.rsi);
