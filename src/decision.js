@@ -1,105 +1,275 @@
-// Stage 5 MVP — Simple Market Decision Engine
-//
-// Purpose:
-// Convert current market state + historical evidence
-// into a simple CALL / PUT / NO TRADE decision.
-//
-// This is intentionally simple.
-// Do NOT add ML, scoring, options logic, or complex
-// regime logic at this stage.
-
 const MIN_SAMPLES = 20;
 
 const MIN_DIRECTION_PCT = 60;
 
-function getDecisionFromEvidence(evidence) {
-  if (!evidence) {
-    return {
-      decision: "NO TRADE",
-      reason: "No historical evidence available."
-    };
-  }
+function num(v){
+  const n = Number(v);
 
-  const samples = Number(evidence.samples || 0);
+  return Number.isFinite(n)
+    ? n
+    : null;
+}
 
-  if (samples < MIN_SAMPLES) {
-    return {
-      decision: "NO TRADE",
-      reason: `Insufficient historical samples (${samples}/${MIN_SAMPLES}).`
-    };
-  }
+function getOutcome(
+  evidence,
+  horizon
+){
+  return (
+    evidence
+      ?.outcomes
+      ?. [horizon] || null
+  );
+}
 
-  const five = evidence.outcomes?.["5m"];
-  const ten = evidence.outcomes?.["10m"];
+function buildEvidenceSummary(
+  evidence
+){
+  const five =
+    getOutcome(
+      evidence,
+      "5m"
+    );
 
-  if (!five || !ten) {
-    return {
-      decision: "NO TRADE",
-      reason: "Required 5m/10m historical outcomes are unavailable."
-    };
-  }
-
-  const fiveUp = Number(five.up_pct || 0);
-  const tenUp = Number(ten.up_pct || 0);
-
-  const fiveDown = Number(five.down_pct || 0);
-  const tenDown = Number(ten.down_pct || 0);
-
-  const fiveMove = Number(five.avg_move_points || 0);
-  const tenMove = Number(ten.avg_move_points || 0);
-
-  // CALL condition
-  if (
-    fiveUp >= MIN_DIRECTION_PCT &&
-    tenUp >= MIN_DIRECTION_PCT &&
-    fiveMove > 0 &&
-    tenMove > 0
-  ) {
-    return {
-      decision: "CALL",
-      reason: "Historical evidence favors upward movement.",
-      evidence: {
-        samples,
-        five_min_up_pct: fiveUp,
-        ten_min_up_pct: tenUp,
-        five_min_avg_move: fiveMove,
-        ten_min_avg_move: tenMove
-      }
-    };
-  }
-
-  // PUT condition
-  if (
-    fiveDown >= MIN_DIRECTION_PCT &&
-    tenDown >= MIN_DIRECTION_PCT &&
-    fiveMove < 0 &&
-    tenMove < 0
-  ) {
-    return {
-      decision: "PUT",
-      reason: "Historical evidence favors downward movement.",
-      evidence: {
-        samples,
-        five_min_down_pct: fiveDown,
-        ten_min_down_pct: tenDown,
-        five_min_avg_move: fiveMove,
-        ten_min_avg_move: tenMove
-      }
-    };
-  }
+  const ten =
+    getOutcome(
+      evidence,
+      "10m"
+    );
 
   return {
-    decision: "NO TRADE",
-    reason: "Historical evidence does not show a sufficiently consistent direction.",
-    evidence: {
-      samples,
-      five_min_up_pct: fiveUp,
-      ten_min_up_pct: tenUp,
-      five_min_avg_move: fiveMove,
-      ten_min_avg_move: tenMove
-    }
+    samples:
+      Number(
+        evidence?.samples || 0
+      ),
+
+    five_min_up_pct:
+      num(five?.up_pct),
+
+    ten_min_up_pct:
+      num(ten?.up_pct),
+
+    five_min_down_pct:
+      num(five?.down_pct),
+
+    ten_min_down_pct:
+      num(ten?.down_pct),
+
+    five_min_avg_move:
+      num(five?.avg_move_points),
+
+    ten_min_avg_move:
+      num(ten?.avg_move_points)
   };
 }
+
+
+function getDecisionFromEvidence(
+  evidence
+){
+
+  if(!evidence){
+
+    return {
+      decision:"NO TRADE",
+
+      reason:
+        "Historical evidence is unavailable.",
+
+      evidence:{}
+    };
+  }
+
+
+  const summary =
+    buildEvidenceSummary(
+      evidence
+    );
+
+
+  const trend =
+    String(
+      evidence?.state?.trend ||
+      evidence?.trend ||
+      "NEUTRAL"
+    ).toUpperCase();
+
+
+  /*
+   * --------------------------------------------------
+   * Minimum evidence
+   * --------------------------------------------------
+   */
+
+  if(
+    summary.samples <
+    MIN_SAMPLES
+  ){
+
+    return {
+      decision:"NO TRADE",
+
+      reason:
+        "Insufficient historical evidence.",
+
+      evidence:summary
+    };
+  }
+
+
+  /*
+   * --------------------------------------------------
+   * CALL setup
+   * --------------------------------------------------
+   */
+
+  const callEvidence =
+    summary.five_min_up_pct !== null &&
+    summary.ten_min_up_pct !== null &&
+    summary.five_min_avg_move !== null &&
+    summary.ten_min_avg_move !== null &&
+
+    summary.five_min_up_pct >=
+      MIN_DIRECTION_PCT &&
+
+    summary.ten_min_up_pct >=
+      MIN_DIRECTION_PCT &&
+
+    summary.five_min_avg_move > 0 &&
+
+    summary.ten_min_avg_move > 0;
+
+
+  /*
+   * --------------------------------------------------
+   * PUT setup
+   * --------------------------------------------------
+   */
+
+  const putEvidence =
+    summary.five_min_down_pct !== null &&
+    summary.ten_min_down_pct !== null &&
+    summary.five_min_avg_move !== null &&
+    summary.ten_min_avg_move !== null &&
+
+    summary.five_min_down_pct >=
+      MIN_DIRECTION_PCT &&
+
+    summary.ten_min_down_pct >=
+      MIN_DIRECTION_PCT &&
+
+    summary.five_min_avg_move < 0 &&
+
+    summary.ten_min_avg_move < 0;
+
+
+  /*
+   * --------------------------------------------------
+   * Directional sanity filter
+   *
+   * BULL -> CALL only
+   * BEAR -> PUT only
+   * NEUTRAL -> either direction
+   * --------------------------------------------------
+   */
+
+  if(
+    trend === "BEAR" &&
+    callEvidence
+  ){
+
+    return {
+      decision:"NO TRADE",
+
+      reason:
+        "Historical evidence favors CALL, but the current market trend is BEAR. Directional conflict.",
+
+      evidence:summary
+    };
+  }
+
+
+  if(
+    trend === "BULL" &&
+    putEvidence
+  ){
+
+    return {
+      decision:"NO TRADE",
+
+      reason:
+        "Historical evidence favors PUT, but the current market trend is BULL. Directional conflict.",
+
+      evidence:summary
+    };
+  }
+
+
+  /*
+   * --------------------------------------------------
+   * Qualified CALL
+   * --------------------------------------------------
+   */
+
+  if(
+    callEvidence &&
+    (
+      trend === "BULL" ||
+      trend === "NEUTRAL"
+    )
+  ){
+
+    return {
+      decision:"CALL",
+
+      reason:
+        "Historical evidence favors upward movement.",
+
+      evidence:summary
+    };
+  }
+
+
+  /*
+   * --------------------------------------------------
+   * Qualified PUT
+   * --------------------------------------------------
+   */
+
+  if(
+    putEvidence &&
+    (
+      trend === "BEAR" ||
+      trend === "NEUTRAL"
+    )
+  ){
+
+    return {
+      decision:"PUT",
+
+      reason:
+        "Historical evidence favors downward movement.",
+
+      evidence:summary
+    };
+  }
+
+
+  /*
+   * --------------------------------------------------
+   * Nothing qualifies
+   * --------------------------------------------------
+   */
+
+  return {
+    decision:"NO TRADE",
+
+    reason:
+      "Historical evidence does not show a sufficiently consistent direction.",
+
+    evidence:summary
+  };
+}
+
 
 export {
   getDecisionFromEvidence
