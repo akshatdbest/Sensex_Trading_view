@@ -1715,7 +1715,7 @@ function renderStructure(p){
   const supportState =
     String(p.support_state || "AWAY");
 
-  container.innerHTML = `
+  container.innerHTML = \`
 
 <div class="structure-grid">
 
@@ -1730,7 +1730,7 @@ function renderStructure(p){
         </div>
 
         <div class="structure-level-value">
-          ${
+          \${
             Number.isFinite(resistance)
               ? n(resistance)
               : "—"
@@ -1738,7 +1738,7 @@ function renderStructure(p){
         </div>
 
         <div class="structure-level-type">
-          ${
+          \${
             p.resistance_type || "—"
           }
         </div>
@@ -1750,7 +1750,7 @@ function renderStructure(p){
         <span>Distance</span>
 
         <b>
-          ${
+          \${
             Number.isFinite(resistanceDistance)
               ? n(resistanceDistance) + " pts"
               : "—"
@@ -1765,24 +1765,24 @@ function renderStructure(p){
 
       <div class="structure-stat">
         <span>State</span>
-        <b class="${structureStateClass(resistanceState)}">
-          ${resistanceState}
+        <b class="\${structureStateClass(resistanceState)}">
+          \${resistanceState}
         </b>
       </div>
 
       <div class="structure-stat">
         <span>Tests 15m</span>
-        <b>${resistanceTests15}</b>
+        <b>\${resistanceTests15}</b>
       </div>
 
       <div class="structure-stat">
         <span>Tests 30m</span>
-        <b>${resistanceTests30}</b>
+        <b>\${resistanceTests30}</b>
       </div>
 
       <div class="structure-stat">
         <span>Pressure</span>
-        <b>${resistancePressure}</b>
+        <b>\${resistancePressure}</b>
       </div>
 
     </div>
@@ -1801,7 +1801,7 @@ function renderStructure(p){
         </div>
 
         <div class="structure-level-value">
-          ${
+          \${
             Number.isFinite(support)
               ? n(support)
               : "—"
@@ -1809,7 +1809,7 @@ function renderStructure(p){
         </div>
 
         <div class="structure-level-type">
-          ${
+          \${
             p.support_type || "—"
           }
         </div>
@@ -1821,7 +1821,7 @@ function renderStructure(p){
         <span>Distance</span>
 
         <b>
-          ${
+          \${
             Number.isFinite(supportDistance)
               ? n(supportDistance) + " pts"
               : "—"
@@ -1836,31 +1836,31 @@ function renderStructure(p){
 
       <div class="structure-stat">
         <span>State</span>
-        <b class="${structureStateClass(supportState)}">
-          ${supportState}
+        <b class="\${structureStateClass(supportState)}">
+          \${supportState}
         </b>
       </div>
 
       <div class="structure-stat">
         <span>Tests 15m</span>
-        <b>${supportTests15}</b>
+        <b>\${supportTests15}</b>
       </div>
 
       <div class="structure-stat">
         <span>Failed 15m</span>
-        <b>${supportFailed15}</b>
+        <b>\${supportFailed15}</b>
       </div>
 
       <div class="structure-stat">
         <span>Pressure</span>
-        <b>${supportPressure}</b>
+        <b>\${supportPressure}</b>
       </div>
 
     </div>
 
     <div class="sub">
-      30m tests: ${supportTests30}
-      · 30m failed breaks: ${supportFailed30}
+      30m tests: \${supportTests30}
+      · 30m failed breaks: \${supportFailed30}
     </div>
 
   </div>
@@ -1874,17 +1874,17 @@ function renderStructure(p){
     Structure interpretation
   </div>
 
-  <div class="structure-summary-value ${interpretation.className}">
-    ${interpretation.label}
+  <div class="structure-summary-value \${interpretation.className}">
+    \${interpretation.label}
   </div>
 
   <div class="structure-summary-note">
-    ${interpretation.note}
+    \${interpretation.note}
   </div>
 
 </div>
 
-`;
+\`;
 }
 function evidencePct(v){
 
