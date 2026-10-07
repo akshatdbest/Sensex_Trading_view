@@ -1951,7 +1951,10 @@ function evidenceStrength(samples){
   return "INSUFFICIENT";
 }
 
-function renderDecision(data){
+function renderDecision(
+  data,
+  activeTrade
+){
 
   const value=
     $("decisionValue");
@@ -2009,9 +2012,25 @@ function renderDecision(data){
       "decision-value no-trade";
   }
 
+  let decisionReason =
+  decision.reason||
+  "No decision reason available.";
+
+  if(
+    activeTrade &&
+    d==="NO TRADE"
+  ){
+  
+    decisionReason =
+      "NO NEW TRADE — Existing "+
+      String(
+        activeTrade.direction||""
+      ).toUpperCase()+
+      " remains active.";
+  }
+  
   reason.textContent=
-    decision.reason||
-    "No decision reason available.";
+    decisionReason;
 
   const evidence=
     decision.evidence||{};
@@ -2056,7 +2075,28 @@ function renderPaperTrade(data){
 
   const container =
     $("paperTradeContent");
-
+  const historyWasOpen =
+    container
+      .querySelector(
+        ".paper-history > details"
+      )
+      ?.open || false;
+  
+  const openTradeIndexes =
+    Array.from(
+      container.querySelectorAll(
+        ".paper-trade-row"
+      )
+    )
+    .map(
+      (row,index)=>
+        row.open
+          ? index
+          : null
+    )
+    .filter(
+      index=>index!==null
+    );
 
   if(!data){
 
@@ -2536,8 +2576,53 @@ function renderPaperTrade(data){
    */
 
   container.innerHTML =
-    activeHtml+
-    historyHtml;
+  activeHtml+
+  historyHtml;
+
+
+  /*
+   * Restore Trade History state
+   * after the 3-second refresh.
+   */
+  
+  const historyDetails =
+    container.querySelector(
+      ".paper-history > details"
+    );
+  
+  if(
+    historyDetails &&
+    historyWasOpen
+  ){
+  
+    historyDetails.open=true;
+  }
+  
+  
+  /*
+   * Restore individual trade
+   * detail rows that were open.
+   */
+  
+  const newTradeRows =
+    Array.from(
+      container.querySelectorAll(
+        ".paper-trade-row"
+      )
+    );
+  
+  for(
+    const index of
+    openTradeIndexes
+  ){
+  
+    if(
+      newTradeRows[index]
+    ){
+  
+      newTradeRows[index].open=true;
+    }
+  }
 }
 
 function performanceNumber(v, suffix=""){
