@@ -4146,11 +4146,18 @@ async function processLatestPaperTrade(
   snapshot
 ){
 
-  const activeTrade=
+  const activeTrade =
     await getActivePaperTrade(
       db
     );
 
+  /*
+   * Existing trade always gets priority.
+   *
+   * The latest snapshot is used to determine
+   * whether the trade should remain open,
+   * hit stop-loss, or hit target.
+   */
   if(activeTrade){
 
     return evaluatePaperTrade(
@@ -4160,14 +4167,29 @@ async function processLatestPaperTrade(
     );
   }
 
+
+  /*
+   * No active trade.
+   *
+   * Pass the COMPLETE decision object to
+   * processPaperTrade.
+   *
+   * decisionData.decision contains:
+   *
+   * {
+   *   decision: "CALL" / "PUT" / "NO TRADE",
+   *   reason: "...",
+   *   evidence: {...}
+   * }
+   */
   return processPaperTrade(
     db,
     {
       decision:
         decisionData.decision,
-  
+
       currentState:
-        snapshot
+        decisionData.current_state
     }
   );
 }
