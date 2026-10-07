@@ -3639,9 +3639,15 @@ async function refresh(){
     const vol=
       cls(p.volume_state);
 
-    const rsi=
+    const rsi =
       Number(p.rsi);
-
+    
+    const currentPrice =
+      Number(s.price);
+    
+    const previous =
+      snapshots[1];
+    
     const previousPrice =
       previous
         ? Number(previous.price)
