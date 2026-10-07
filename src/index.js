@@ -24,20 +24,26 @@ const DASHBOARD = `<!doctype html>
 <title>SENSEX Signal Engine</title>
 <style>
 :root{
-  --bg:#0b0d10;
-  --panel:#101318;
-  --panel2:#0d1014;
-  --line:#252b33;
+  --bg:#0b0e12;
+  --panel:#11161c;
+  --panel2:#0d1217;
+  --line:#202832;
 
-  --text:#e2e6eb;
-  --muted:#858e99;
+  --text:#f2f2f2;
+  --muted:#8a929c;
 
-  --accent:#58a6ff;
+  /* UI / reference */
+  --accent:#2196f3;
 
-  --green:#3fb950;
-  --red:#f85149;
-  --amber:#d29922;
-  --cyan:#8b949e;
+  /* Market semantics */
+  --green:#00c853;
+  --red:#ff3b30;
+  --amber:#ffc107;
+
+  /* Secondary technical information */
+  --cyan:#00bcd4;
+  --purple:#b84cff;
+  --magenta:#ff00a8;
 
   --shadow:none;
 }
@@ -155,9 +161,9 @@ main{
 .panel,
 .decision-panel,
 .paper-panel{
-  background:var(--panel);
-  border:1px solid var(--line);
-  border-radius:6px;
+  background:#0f1318;
+  border:1px solid #20262d;
+  border-radius:4px;
   box-shadow:none;
 }
 .card{
@@ -204,13 +210,13 @@ main{
 .badge{
   display:inline-flex;
   align-items:center;
-  padding:5px 8px;
-  border-radius:7px;
+  padding:3px 6px;
+  border-radius:2px;
   font-size:10px;
-  font-weight:800;
-  letter-spacing:.08em;
-  border:1px solid var(--line);
-  background:#10151b
+  font-weight:700;
+  letter-spacing:.06em;
+  border:1px solid #252c34;
+  background:transparent;
 }
 .bull{color:var(--green)}
 .bear{color:var(--red)}
@@ -1401,30 +1407,29 @@ const pill=(v,type="amber")=>
 
 function tone(v){
 
-  const x=
-    String(v||"").toUpperCase();
+  const x =
+    String(v || "").toUpperCase();
 
   return
-    x==="BULL" ||
-    x==="HIGH" ||
-    x==="ABOVE" ||
-    x==="BULLISH"
-      ?"green"
-      :
-    x==="BEAR" ||
-    x==="LOW" ||
-    x==="BELOW" ||
-    x==="BEARISH"
-      ?"red"
-      :
-    x==="NEUTRAL" ||
-    x==="WATCH" ||
-    x==="AT"
-      ?"amber"
-      :
+    x === "BULL" ||
+    x === "HIGH" ||
+    x === "ABOVE" ||
+    x === "BULLISH"
+      ? "green"
+    :
+    x === "BEAR" ||
+    x === "BELOW" ||
+    x === "BEARISH"
+      ? "red"
+    :
+    x === "LOW" ||
+    x === "NEUTRAL" ||
+    x === "WATCH" ||
+    x === "AT"
+      ? "amber"
+    :
       "blue";
 }
-
 function rsiTone(v){
 
   const x=Number(v);
