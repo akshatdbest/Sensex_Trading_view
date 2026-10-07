@@ -1020,6 +1020,92 @@ tbody tr:hover{
     grid-template-columns:repeat(3,1fr)
   }
 }
+/* --------------------------------------------------
+   OVERNIGHT MARKET CONTEXT
+-------------------------------------------------- */
+
+.overnight-panel{
+  margin-top:16px;
+  padding:20px
+}
+
+.overnight-grid{
+  display:grid;
+  grid-template-columns:1.5fr repeat(3,1fr);
+  gap:10px
+}
+
+.overnight-card{
+  background:var(--panel2);
+  border:1px solid #1c242d;
+  border-radius:9px;
+  padding:14px
+}
+
+.overnight-card.primary{
+  background:#11161c
+}
+
+.overnight-card span{
+  display:block;
+  color:var(--muted);
+  font-size:9px;
+  text-transform:uppercase;
+  letter-spacing:.1em
+}
+
+.overnight-card b{
+  display:block;
+  margin-top:8px;
+  font-size:20px
+}
+
+.overnight-card small{
+  display:block;
+  margin-top:5px;
+  color:#596572;
+  font-size:10px
+}
+
+.overnight-live{
+  color:var(--green)
+}
+
+.overnight-stale{
+  color:var(--amber)
+}
+
+.overnight-error{
+  color:var(--red)
+}
+
+.overnight-bull{
+  color:var(--green)
+}
+
+.overnight-bear{
+  color:var(--red)
+}
+
+.overnight-neutral{
+  color:var(--amber)
+}
+
+@media(max-width:1150px){
+
+  .overnight-grid{
+    grid-template-columns:repeat(2,1fr)
+  }
+
+}
+
+@media(max-width:700px){
+
+  .overnight-grid{
+    grid-template-columns:1fr
+  }
+
+}
 .empty{
   text-align:center;
   padding:35px;
@@ -1076,7 +1162,9 @@ Last snapshot
 <section class="cards">
 
 <div class="card primary">
-  <label>SENSEX · LIVE</label>
+<label id="sensexMarketLabel">
+  SENSEX · MARKET
+</label>
 
   <div id="price" class="big">
     —
@@ -1143,6 +1231,100 @@ Relative to 20-period average
 </div>
 
 </section>
+
+</section>
+
+
+<section class="overnight-panel panel">
+
+  <div class="panel-head">
+
+    <div class="panel-title">
+      Overnight Market Context
+    </div>
+
+    <div class="panel-note">
+      GIFT NIFTY · informational context only
+    </div>
+
+  </div>
+
+
+  <div id="giftNiftyContent">
+
+    <div class="overnight-grid">
+
+      <div class="overnight-card primary">
+
+        <span>GIFT NIFTY</span>
+
+        <b id="giftNiftyPrice">
+          —
+        </b>
+
+        <small id="giftNiftyChange">
+          Waiting for TradingView data
+        </small>
+
+      </div>
+
+
+      <div class="overnight-card">
+
+        <span>Status</span>
+
+        <b
+          id="giftNiftyStatus"
+          class="overnight-neutral"
+        >
+          WAITING
+        </b>
+
+        <small id="giftNiftyUpdated">
+          —
+        </small>
+
+      </div>
+
+
+      <div class="overnight-card">
+
+        <span>Bias</span>
+
+        <b
+          id="giftNiftyBias"
+          class="overnight-neutral"
+        >
+          —
+        </b>
+
+        <small>
+          Derived from latest GIFT NIFTY snapshot
+        </small>
+
+      </div>
+
+
+      <div class="overnight-card">
+
+        <span>Last Snapshot</span>
+
+        <b id="giftNiftyAge">
+          —
+        </b>
+
+        <small>
+          No SENSEX trade generated from this data
+        </small>
+
+      </div>
+
+    </div>
+
+  </div>
+
+</section>
+
 
 <section class="decision-panel">
 
@@ -1473,7 +1655,232 @@ function detail(
       )+
     '</div>';
 }
+function renderGiftNifty(data){
 
+  const priceEl =
+    $("giftNiftyPrice");
+
+  const changeEl =
+    $("giftNiftyChange");
+
+  const statusEl =
+    $("giftNiftyStatus");
+
+  const updatedEl =
+    $("giftNiftyUpdated");
+
+  const biasEl =
+    $("giftNiftyBias");
+
+  const ageEl =
+    $("giftNiftyAge");
+
+
+  if(!data){
+
+    priceEl.textContent =
+      "—";
+
+    changeEl.textContent =
+      "Waiting for TradingView data";
+
+    statusEl.textContent =
+      "WAITING";
+
+    statusEl.className =
+      "overnight-neutral";
+
+    updatedEl.textContent =
+      "—";
+
+    biasEl.textContent =
+      "—";
+
+    biasEl.className =
+      "overnight-neutral";
+
+    ageEl.textContent =
+      "—";
+
+    return;
+  }
+
+
+  const payload =
+    data.raw_payload||{};
+
+
+  const price =
+    Number(data.price);
+
+
+  const open =
+    Number(
+      payload.day_open ??
+      data.open
+    );
+
+
+  const change =
+    Number.isFinite(price) &&
+    Number.isFinite(open)
+      ? price-open
+      : null;
+
+
+  const changePct =
+    Number.isFinite(change) &&
+    Number.isFinite(open) &&
+    open!==0
+      ? (change/open)*100
+      : null;
+
+
+  priceEl.textContent =
+    Number.isFinite(price)
+      ? n(price)
+      : "—";
+
+
+  changeEl.textContent =
+    Number.isFinite(change)
+
+      ? (
+          change>=0
+            ? "▲ +"
+            : "▼ "
+        )+
+        n(change)+
+        (
+          Number.isFinite(changePct)
+            ? " ("+
+              (
+                changePct>=0
+                  ? "+"
+                  : ""
+              )+
+              changePct.toFixed(2)+
+              "%)"
+            : ""
+        )
+
+      : "Change —";
+
+
+  changeEl.className =
+    Number.isFinite(change)
+
+      ? (
+          change>0
+            ? "overnight-bull"
+            : change<0
+              ? "overnight-bear"
+              : "overnight-neutral"
+        )
+
+      : "overnight-neutral";
+
+
+  const eventTime =
+    data.event_time ||
+    data.received_at;
+
+
+  updatedEl.textContent =
+    t(eventTime);
+
+
+  const ageSec =
+    eventTime
+
+      ? Math.max(
+          0,
+          Math.round(
+            (
+              Date.now()-
+              new Date(eventTime).getTime()
+            )/1000
+          )
+        )
+
+      : null;
+
+
+  /*
+   * GIFT NIFTY is treated as live context
+   * when the latest TradingView snapshot is
+   * reasonably recent.
+   */
+  const isRecent =
+    Number.isFinite(ageSec) &&
+    ageSec < 180;
+
+
+  statusEl.textContent =
+    isRecent
+      ? "LIVE"
+      : "STALE";
+
+
+  statusEl.className =
+    isRecent
+      ? "overnight-live"
+      : "overnight-stale";
+
+
+  ageEl.textContent =
+    Number.isFinite(ageSec)
+
+      ? (
+          ageSec < 60
+            ? ageSec+"s ago"
+            : Math.floor(ageSec/60)+"m ago"
+        )
+
+      : "—";
+
+
+  let bias =
+    "NEUTRAL";
+
+
+  const trend =
+    String(
+      payload.trend||""
+    ).toUpperCase();
+
+
+  if(
+    trend==="BULL" ||
+    trend==="BULLISH"
+  ){
+
+    bias =
+      "BULLISH";
+
+  }else if(
+    trend==="BEAR" ||
+    trend==="BEARISH"
+  ){
+
+    bias =
+      "BEARISH";
+  }
+
+
+  biasEl.textContent =
+    bias;
+
+
+  biasEl.className =
+    bias==="BULLISH"
+      ? "overnight-bull"
+      :
+    bias==="BEARISH"
+      ? "overnight-bear"
+      :
+      "overnight-neutral";
+}
 function renderState(s,p){
 
   $("stateGrid").innerHTML=[
@@ -3488,10 +3895,97 @@ async function refresh(){
         }
       );
 
+
     if(!response.ok)
       throw new Error(
         "HTTP "+response.status
       );
+
+
+    const d=
+      await response.json();
+
+
+    /*
+     * --------------------------------------------------
+     * GIFT NIFTY
+     * --------------------------------------------------
+     */
+
+    const giftResponse =
+      await fetch(
+        "/api/gift-nifty?limit=20",
+        {
+          cache:"no-store"
+        }
+      );
+
+
+    if(giftResponse.ok){
+
+      const giftData =
+        await giftResponse.json();
+
+      renderGiftNifty(
+        giftData.latest||null
+      );
+
+    }else{
+
+      renderGiftNifty(null);
+
+    }async function refresh(){
+
+  try{
+
+    const response=
+      await fetch(
+        "/api/signals?limit=50",
+        {
+          cache:"no-store"
+        }
+      );
+
+
+    if(!response.ok)
+      throw new Error(
+        "HTTP "+response.status
+      );
+
+
+    const d=
+      await response.json();
+
+
+    /*
+     * --------------------------------------------------
+     * GIFT NIFTY
+     * --------------------------------------------------
+     */
+
+    const giftResponse =
+      await fetch(
+        "/api/gift-nifty?limit=20",
+        {
+          cache:"no-store"
+        }
+      );
+
+
+    if(giftResponse.ok){
+
+      const giftData =
+        await giftResponse.json();
+
+      renderGiftNifty(
+        giftData.latest||null
+      );
+
+    }else{
+
+      renderGiftNifty(null);
+
+    }
 
     const d=
       await response.json();
@@ -3530,6 +4024,14 @@ async function refresh(){
       renderDecision(
         decision
       );
+      if(
+        !marketHours &&
+        decision
+      ){
+      
+        $("decisionReason").textContent =
+          "MARKET CLOSED — showing the last available SENSEX analysis. No new paper trade is generated while the market is closed.";
+      }
 
     }else{
 
@@ -3594,21 +4096,124 @@ async function refresh(){
       snapshots[0]||
       rows[0];
 
-    $("status").innerHTML=
-      '<span class="dot"></span>'+
-      '<span>'+
-      (
-        s
-          ?"LIVE"
-          :"WAITING"
-      )+
-      '</span>';
-
-    $("status").style.color=
+    const now =
+      new Date();
+    
+    
+    const currentMinutes =
+      now.getHours()*60+
+      now.getMinutes();
+    
+    
+    const day =
+      now.getDay();
+    
+    
+    const isWeekday =
+      day>=1 &&
+      day<=5;
+    
+    
+    const marketOpenMinutes =
+      9*60+15;
+    
+    
+    const marketCloseMinutes =
+      15*60+30;
+    
+    
+    const marketHours =
+      isWeekday &&
+      currentMinutes>=marketOpenMinutes &&
+      currentMinutes<=marketCloseMinutes;
+    
+    
+    const snapshotTime =
       s
-        ?"var(--green)"
-        :"var(--amber)";
-
+        ? new Date(
+            s.event_time||
+            s.received_at
+          )
+        : null;
+    
+    
+    const snapshotAgeSec =
+      snapshotTime
+        ? Math.max(
+            0,
+            Math.round(
+              (
+                Date.now()-
+                snapshotTime.getTime()
+              )/1000
+            )
+          )
+        : null;
+    
+    
+    let marketStatus =
+      "WAITING";
+    
+    
+    let marketStatusColor =
+      "var(--amber)";
+    
+    
+    if(!s){
+    
+      marketStatus =
+        "WAITING";
+    
+      marketStatusColor =
+        "var(--amber)";
+    
+    }else if(
+      marketHours &&
+      Number.isFinite(snapshotAgeSec) &&
+      snapshotAgeSec<180
+    ){
+    
+      marketStatus =
+        "LIVE";
+    
+      marketStatusColor =
+        "var(--green)";
+    
+    }else if(!marketHours){
+    
+      marketStatus =
+        "MARKET CLOSED";
+    
+      marketStatusColor =
+        "var(--amber)";
+    
+    }else{
+    
+      marketStatus =
+        "DATA STALE";
+    
+      marketStatusColor =
+        "var(--red)";
+    }
+    
+    
+    $(\"status\").innerHTML=
+      '<span class=\"dot\"></span>'+
+      '<span>'+
+        marketStatus+
+      '</span>';
+    
+    
+    $(\"status\").style.color =
+      marketStatusColor;
+    $("sensexMarketLabel").textContent =
+      marketStatus==="LIVE"
+        ? "SENSEX · LIVE"
+        :
+      marketStatus==="MARKET CLOSED"
+        ? "SENSEX · CLOSED"
+        :
+      "SENSEX · MARKET";
     if(!s){
       $("structureContent").innerHTML =
         '<div class="empty">No market structure data available.</div>';
@@ -3817,20 +4422,38 @@ async function refresh(){
         )
       );
 
-    $("age").textContent=
-      ageSec<90
-        ?"Live · "+
+      if(!marketHours){
+      
+        $(\"age\").textContent =
+          Number.isFinite(ageSec)
+            ? "Market closed · Last snapshot "+
+              ageSec+
+              "s ago"
+            : "Market closed";
+      
+        $(\"age\").style.color =
+          "var(--amber)";
+      
+      }else if(ageSec<90){
+      
+        $(\"age\").textContent =
+          "Live · "+
           ageSec+
-          "s ago"
-        :
-        "Stale · "+
-        ageSec+
-        "s ago";
-
-    $("age").style.color=
-      ageSec<90
-        ?"var(--green)"
-        :"var(--red)";
+          "s ago";
+      
+        $(\"age\").style.color =
+          "var(--green)";
+      
+      }else{
+      
+        $(\"age\").textContent =
+          "Stale · "+
+          ageSec+
+          "s ago";
+      
+        $(\"age\").style.color =
+          "var(--red)";
+      }
 
     renderState(
       s,
@@ -4019,6 +4642,8 @@ function parseTime(v){
 
 async function initDb(db){
 
+async function initDb(db){
+
   await db.prepare(`
     CREATE TABLE IF NOT EXISTS signals (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -4036,14 +4661,43 @@ async function initDb(db){
       raw_payload TEXT NOT NULL
     )
   `).run();
-}
 
+
+  /*
+   * --------------------------------------------------
+   * GIFT NIFTY
+   * --------------------------------------------------
+   *
+   * Keep GIFT NIFTY completely separate from SENSEX
+   * signal history.
+   *
+   * This prevents overnight GIFT NIFTY snapshots from
+   * contaminating SENSEX outcomes/evidence.
+   */
+  await db.prepare(`
+    CREATE TABLE IF NOT EXISTS gift_nifty_snapshots (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      received_at TEXT NOT NULL,
+      event_time TEXT,
+      ticker TEXT NOT NULL,
+      exchange TEXT,
+      timeframe TEXT,
+      event TEXT NOT NULL,
+      price REAL,
+      open REAL,
+      high REAL,
+      low REAL,
+      volume REAL,
+      raw_payload TEXT NOT NULL
+    )
+  `).run();
+}
 async function getSignals(
   db,
   limit
 ){
 
-  const result=
+  const result =
     await db.prepare(`
       SELECT
         id,
@@ -4077,6 +4731,99 @@ async function getSignals(
         JSON.parse(
           r.raw_payload
         )
+    })
+  );
+}
+
+
+/*
+ * --------------------------------------------------
+ * GIFT NIFTY HELPERS
+ * --------------------------------------------------
+ */
+
+function isGiftNiftyTicker(ticker){
+
+  const value =
+    String(ticker||"")
+      .toUpperCase()
+      .replace(/\s+/g,"");
+
+  return(
+    value.includes("GIFTNIFTY") ||
+    value.includes("GIFT-NIFTY") ||
+    value.includes("NIFTY") &&
+    (
+      value.includes("GIFT") ||
+      value.includes("SGXNIFTY")
+    )
+  );
+}
+
+
+function isSensexTicker(ticker){
+
+  const value =
+    String(ticker||"")
+      .toUpperCase()
+      .replace(/\s+/g,"");
+
+  return(
+    value.includes("SENSEX") ||
+    value.includes("BSESENSEX")
+  );
+}
+
+
+async function getGiftNiftySnapshots(
+  db,
+  limit=20
+){
+
+  const safeLimit =
+    Math.max(
+      1,
+      Math.min(
+        Number(limit)||20,
+        100
+      )
+    );
+
+  const result =
+    await db.prepare(`
+      SELECT
+        id,
+        received_at,
+        event_time,
+        ticker,
+        exchange,
+        timeframe,
+        event,
+        price,
+        open,
+        high,
+        low,
+        volume,
+        raw_payload
+      FROM gift_nifty_snapshots
+      ORDER BY id DESC
+      LIMIT ?
+    `)
+    .bind(safeLimit)
+    .all();
+
+  return(
+    result.results||[]
+  ).map(
+    r=>({
+
+      ...r,
+
+      raw_payload:
+        JSON.parse(
+          r.raw_payload||"{}"
+        )
+
     })
   );
 }
@@ -4602,7 +5349,45 @@ export default{
           null
       });
     }
-
+    if(
+      url.pathname==="/api/gift-nifty" &&
+      method==="GET"
+    ){
+    
+      const requested =
+        Number(
+          url.searchParams.get(
+            "limit"
+          )||20
+        );
+    
+    
+      const snapshots =
+        await getGiftNiftySnapshots(
+          env.DB,
+          requested
+        );
+    
+    
+      return Response.json(
+    
+        {
+          latest:
+            snapshots[0]||null,
+    
+          snapshots
+    
+        },
+    
+        {
+          headers:{
+            "cache-control":
+              "no-store"
+          }
+        }
+    
+      );
+    }
     if(
       url.pathname==="/api/signals" &&
       method==="GET"
@@ -4694,9 +5479,36 @@ export default{
         );
       }
 
-      const result=
+      /*
+       * --------------------------------------------------
+       * ROUTE TRADINGVIEW DATA
+       * --------------------------------------------------
+       *
+       * SENSEX:
+       *   -> existing signals table
+       *   -> existing decision/evidence/paper trade flow
+       *
+       * GIFT NIFTY:
+       *   -> separate gift_nifty_snapshots table
+       *   -> NEVER enters SENSEX decision/evidence engine
+       */
+
+      const giftNifty =
+        isGiftNiftyTicker(
+          ticker
+        );
+
+
+      const table =
+        giftNifty
+          ? "gift_nifty_snapshots"
+          : "signals";
+
+
+      const result =
         await env.DB.prepare(`
-          INSERT INTO signals
+
+          INSERT INTO ${table}
           (
             received_at,
             event_time,
@@ -4725,6 +5537,7 @@ export default{
             ?,
             ?
           )
+
         `)
         .bind(
 
@@ -4778,12 +5591,23 @@ export default{
         )
         .run();
 
-      let paperTradeResult=null;
-
-      if(
-        event===
-        "MARKET_SNAPSHOT"
-      ){
+        let paperTradeResult=null;
+        
+        
+        /*
+         * Only SENSEX MARKET_SNAPSHOT events are
+         * allowed to drive the decision engine and
+         * paper-trade lifecycle.
+         *
+         * GIFT NIFTY is context only.
+         */
+        
+        if(
+          !giftNifty &&
+          isSensexTicker(ticker) &&
+          event===
+          "MARKET_SNAPSHOT"
+        ){
 
         try{
 
